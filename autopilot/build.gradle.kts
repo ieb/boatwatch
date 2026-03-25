@@ -68,6 +68,9 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
+    // WearOS text input (RemoteInput)
+    implementation("androidx.wear:wear-input:1.2.0-alpha02")
+
     // HTTP client for streaming SeaSmart
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

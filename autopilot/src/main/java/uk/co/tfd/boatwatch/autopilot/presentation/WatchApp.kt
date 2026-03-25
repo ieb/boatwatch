@@ -15,6 +15,7 @@ fun WatchApp(vm: AutopilotViewModel = viewModel()) {
     val apState by vm.state.collectAsStateWithLifecycle()
     val connState by vm.connectionState.collectAsStateWithLifecycle()
     val serverUrl by vm.serverUrl.collectAsStateWithLifecycle()
+    val urlHistory by vm.urlHistory.collectAsStateWithLifecycle()
 
     AutopilotWatchTheme {
         SwipeDismissableNavHost(
@@ -36,6 +37,7 @@ fun WatchApp(vm: AutopilotViewModel = viewModel()) {
                 SettingsScreen(
                     serverUrl = serverUrl,
                     connectionState = connState,
+                    urlHistory = urlHistory,
                     onUpdateUrl = { vm.updateServerUrl(it) },
                 )
             }

@@ -67,4 +67,7 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // WearOS text input (RemoteInput)
+    implementation("androidx.wear:wear-input:1.2.0-alpha02")
 }

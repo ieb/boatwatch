@@ -9,6 +9,7 @@ Usage:
 
 import argparse
 import math
+import socket
 import struct
 import threading
 import time
@@ -17,6 +18,8 @@ import json
 from dataclasses import dataclass, field
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+
+from zeroconf import ServiceInfo, Zeroconf
 
 
 # ---------------------------------------------------------------------------
@@ -439,14 +442,53 @@ def background_ticker():
 # Main
 # ---------------------------------------------------------------------------
 
+def get_local_ip() -> str:
+    """Get the local IP address of this machine."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
+def register_mdns(port: int, hostname: str = "boatsystems") -> tuple[Zeroconf, ServiceInfo]:
+    """Register an mDNS service and hostname."""
+    local_ip = get_local_ip()
+    ip_bytes = socket.inet_aton(local_ip)
+
+    service_info = ServiceInfo(
+        "_http._tcp.local.",
+        f"{hostname}._http._tcp.local.",
+        addresses=[ip_bytes],
+        port=port,
+        properties={"path": "/api/", "server": "mock-firmware"},
+        server=f"{hostname}.local.",
+    )
+
+    zc = Zeroconf()
+    zc.register_service(service_info)
+    return zc, service_info
+
+
 def main():
     parser = argparse.ArgumentParser(description="Mock firmware HTTP server for BoatWatch")
     parser.add_argument("--port", type=int, default=8080, help="Listen port (default: 8080)")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
+    parser.add_argument("--hostname", type=str, default="boatsystems", help="mDNS hostname (default: boatsystems)")
     args = parser.parse_args()
 
     ticker = threading.Thread(target=background_ticker, daemon=True)
     ticker.start()
+
+    # Register mDNS service
+    local_ip = get_local_ip()
+    zc, service_info = register_mdns(args.port, args.hostname)
+    print(f"mDNS: registered {args.hostname}.local -> {local_ip}")
+    print(f"mDNS: service {args.hostname}._http._tcp.local. on port {args.port}")
+    print()
 
     server = ThreadingHTTPServer((args.host, args.port), FirmwareHandler)
     print(f"Mock firmware running on http://{args.host}:{args.port}")
@@ -459,6 +501,8 @@ def main():
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nShutting down.")
+        zc.unregister_service(service_info)
+        zc.close()
         server.shutdown()
 
 
