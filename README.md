@@ -161,6 +161,11 @@ curl -N "http://localhost:8080/api/seasmart?pgns=65379,65359,65360,65345"
 
 In Android Studio: **Tools > Device Manager > Create Device** and select a Wear OS device (round, API 34).
 
+```bash
+emulator -list-avds
+emulator -avd Wear_OS_XL_Round
+```
+
 ### 2. Build debug APKs
 
 Debug builds use fake data sources that don't need the mock server — they generate simulated data internally.
@@ -197,24 +202,29 @@ To test with the mock server instead of fake data, change `FAKE_DATA`/`FAKE_HTTP
 
 **Settings > Developer options > ADB debugging > ON**
 
-For wireless debugging: **Settings > Developer options > Wireless debugging > ON**, then note the IP and port.
+**Settings > Developer options > Wireless debugging > ON**, 
 
-### 3. Connect via ADB
+### 3. Pair
+
+**Settings > Developer options > Wireless debugging > Pair
+
+A PIN will be displayed with a IP and port
 
 ```bash
-# USB
-adb devices
+adb pair <watch-ip>:<port>
+Enter pairing code: <pin>
 
-# WiFi (watch and computer on same network)
-adb connect <watch-ip>:<port>
+adb devices -l
 ```
+
+Note the name of the device as paired
 
 ### 4. Install release APKs
 
 ```bash
 ./gradlew assembleRelease
-adb install battery/build/outputs/apk/release/battery-release.apk
-adb install autopilot/build/outputs/apk/release/autopilot-release.apk
+adb -s <device-name _adb-tls-connect._tcp > install battery/build/outputs/apk/release/battery-release.apk
+adb -s <device-name _adb-tls-connect._tcp > install autopilot/build/outputs/apk/release/autopilot-release.apk
 ```
 
 ### 5. Configure server URL

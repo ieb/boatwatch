@@ -16,6 +16,7 @@ fun WatchApp(vm: BatteryViewModel = viewModel()) {
     val connectionStatus by vm.connectionStatus.collectAsStateWithLifecycle()
     val serverUrl by vm.serverUrl.collectAsStateWithLifecycle()
     val urlHistory by vm.urlHistory.collectAsStateWithLifecycle()
+    val demoMode by vm.demoMode.collectAsStateWithLifecycle()
 
     BatteryWatchTheme {
         SwipeDismissableNavHost(
@@ -35,7 +36,9 @@ fun WatchApp(vm: BatteryViewModel = viewModel()) {
                     serverUrl = serverUrl,
                     connectionStatus = connectionStatus,
                     urlHistory = urlHistory,
+                    demoMode = demoMode,
                     onUpdateUrl = { vm.updateServerUrl(it) },
+                    onSetDemoMode = { vm.setDemoMode(it) },
                 )
             }
         }

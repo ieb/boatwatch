@@ -5,7 +5,6 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import uk.co.tfd.boatwatch.battery.BuildConfig
 import uk.co.tfd.boatwatch.battery.data.*
 
 class BatteryViewModel(application: Application) : AndroidViewModel(application) {
@@ -14,20 +13,20 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
         private const val PREFS = "battery_prefs"
         private const val KEY_URL = "server_url"
         private const val KEY_URL_HISTORY = "url_history"
-        private const val DEFAULT_URL = BuildConfig.DEFAULT_URL
+        private const val KEY_DEMO_MODE = "demo_mode"
+        private const val DEFAULT_URL = "http://boatsystems.local"
         private const val MAX_HISTORY = 5
     }
 
     private val prefs = application.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    private val dataSource: BatteryDataSource = if (BuildConfig.FAKE_DATA) {
-        FakeBatteryDataSource()
-    } else {
-        HttpBatteryDataSource()
-    }
+    private var dataSource: BatteryDataSource = createDataSource()
 
-    val state: StateFlow<BatteryState> = dataSource.state
-    val connectionStatus: StateFlow<ConnectionStatus> = dataSource.connectionStatus
+    private val _state = MutableStateFlow(BatteryState())
+    val state: StateFlow<BatteryState> = _state
+
+    private val _connectionStatus = MutableStateFlow(ConnectionStatus.DISCONNECTED)
+    val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus
 
     val serverUrl: MutableStateFlow<String> = MutableStateFlow(
         prefs.getString(KEY_URL, DEFAULT_URL) ?: DEFAULT_URL
@@ -36,8 +35,47 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
     private val _urlHistory = MutableStateFlow(loadUrlHistory())
     val urlHistory: StateFlow<List<String>> = _urlHistory
 
+    private val _demoMode = MutableStateFlow(prefs.getBoolean(KEY_DEMO_MODE, false))
+    val demoMode: StateFlow<Boolean> = _demoMode
+
     init {
+        startDataSource()
+    }
+
+    private fun createDataSource(): BatteryDataSource {
+        return if (_demoMode.value) FakeBatteryDataSource() else HttpBatteryDataSource()
+    }
+
+    private fun startDataSource() {
         dataSource.start(serverUrl.value)
+        // Forward state — collect in a simple thread since BatteryDataSource uses StateFlow
+        forwardState()
+    }
+
+    private fun forwardState() {
+        // Direct delegation — the flows update in-place
+        // We re-point our mutable flows to the current data source values
+        val ds = dataSource
+        Thread {
+            while (true) {
+                _state.value = ds.state.value
+                _connectionStatus.value = ds.connectionStatus.value
+                Thread.sleep(100)
+            }
+        }.apply { isDaemon = true; start() }
+    }
+
+    fun setDemoMode(enabled: Boolean) {
+        if (enabled == _demoMode.value) return
+        _demoMode.value = enabled
+        prefs.edit().putBoolean(KEY_DEMO_MODE, enabled).apply()
+
+        // Tear down old source, create new one
+        dataSource.destroy()
+        dataSource = createDataSource()
+        _state.value = BatteryState()
+        _connectionStatus.value = ConnectionStatus.DISCONNECTED
+        startDataSource()
     }
 
     fun updateServerUrl(url: String) {

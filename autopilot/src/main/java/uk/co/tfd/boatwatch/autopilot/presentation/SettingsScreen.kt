@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.*
 import androidx.wear.input.RemoteInputIntentHelper
 import kotlinx.coroutines.launch
-import uk.co.tfd.boatwatch.autopilot.BuildConfig
 import uk.co.tfd.boatwatch.autopilot.network.ServerDiscovery
 import uk.co.tfd.boatwatch.autopilot.network.DiscoveredServer
 import uk.co.tfd.boatwatch.autopilot.protocol.ConnectionState
@@ -29,7 +28,9 @@ fun SettingsScreen(
     serverUrl: String,
     connectionState: ConnectionState,
     urlHistory: List<String>,
+    demoMode: Boolean,
     onUpdateUrl: (String) -> Unit,
+    onSetDemoMode: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -48,12 +49,9 @@ fun SettingsScreen(
         }
     }
 
-    // Build preset list: default + debug emulator + history (deduplicated)
+    // Build preset list: default + history (deduplicated)
     val presets = remember(urlHistory) {
         val list = mutableListOf("http://boatsystems.local")
-        if (BuildConfig.DEBUG) {
-            list.add("http://10.0.2.2:8080")
-        }
         urlHistory.forEach { url ->
             if (url !in list) list.add(url)
         }
@@ -76,6 +74,31 @@ fun SettingsScreen(
             )
         }
 
+        // Demo mode toggle
+        item {
+            ToggleChip(
+                checked = demoMode,
+                onCheckedChange = { onSetDemoMode(it) },
+                label = { Text("Demo Mode") },
+                toggleControl = {
+                    Switch(checked = demoMode)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        if (demoMode) {
+            item {
+                Text(
+                    text = "Using simulated data",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colors.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+
+        if (!demoMode) {
         // Current URL and status
         item {
             val statusColor = when (connectionState) {
@@ -189,5 +212,6 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        } // end if (!demoMode)
     }
 }

@@ -4,10 +4,10 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import uk.co.tfd.boatwatch.autopilot.BuildConfig
 import uk.co.tfd.boatwatch.autopilot.network.*
 import uk.co.tfd.boatwatch.autopilot.protocol.*
 
@@ -17,18 +17,16 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
         private const val PREFS = "autopilot_prefs"
         private const val KEY_URL = "server_url"
         private const val KEY_URL_HISTORY = "url_history"
-        private const val DEFAULT_URL = BuildConfig.DEFAULT_URL
+        private const val KEY_DEMO_MODE = "demo_mode"
+        private const val DEFAULT_URL = "http://boatsystems.local"
         private const val SOURCE_ADDRESS = 0x42
         private const val MAX_HISTORY = 5
     }
 
     private val prefs = application.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    private val client: AutopilotHttpClient = if (BuildConfig.FAKE_HTTP) {
-        FakeAutopilotClient()
-    } else {
-        HttpAutopilotClient()
-    }
+    private var client: AutopilotHttpClient = createClient()
+    private var collectJob: Job? = null
 
     // The Seatalk protocol uses the same wind command (mode=0x00, submode=0x01) for
     // both AWA and TWA. We track the user's chosen wind sub-mode locally and apply it
@@ -38,7 +36,8 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
     private val _displayState = MutableStateFlow(AutopilotState())
     val state: StateFlow<AutopilotState> = _displayState
 
-    val connectionState: StateFlow<ConnectionState> = client.connectionState
+    private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
+    val connectionState: StateFlow<ConnectionState> = _connectionState
 
     val serverUrl: MutableStateFlow<String> = MutableStateFlow(
         prefs.getString(KEY_URL, DEFAULT_URL) ?: DEFAULT_URL
@@ -47,23 +46,53 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
     private val _urlHistory = MutableStateFlow(loadUrlHistory())
     val urlHistory: StateFlow<List<String>> = _urlHistory
 
+    private val _demoMode = MutableStateFlow(prefs.getBoolean(KEY_DEMO_MODE, false))
+    val demoMode: StateFlow<Boolean> = _demoMode
+
     init {
+        startClient()
+    }
+
+    private fun createClient(): AutopilotHttpClient {
+        return if (_demoMode.value) FakeAutopilotClient() else HttpAutopilotClient()
+    }
+
+    private fun startClient() {
+        collectJob?.cancel()
         client.connect(serverUrl.value)
-        viewModelScope.launch {
-            client.state.collect { raw ->
-                // When firmware reports WIND_AWA (it can't distinguish AWA/TWA),
-                // substitute our locally tracked wind mode
-                _displayState.value = if (raw.pilotMode == PilotMode.WIND_AWA) {
-                    raw.copy(pilotMode = requestedWindMode)
-                } else {
-                    // If firmware says standby or compass, reset wind mode to AWA
-                    if (raw.pilotMode == PilotMode.STANDBY || raw.pilotMode == PilotMode.COMPASS) {
-                        requestedWindMode = PilotMode.WIND_AWA
+
+        // Forward connection state
+        collectJob = viewModelScope.launch {
+            launch {
+                client.connectionState.collect { _connectionState.value = it }
+            }
+            launch {
+                client.state.collect { raw ->
+                    _displayState.value = if (raw.pilotMode == PilotMode.WIND_AWA) {
+                        raw.copy(pilotMode = requestedWindMode)
+                    } else {
+                        if (raw.pilotMode == PilotMode.STANDBY || raw.pilotMode == PilotMode.COMPASS) {
+                            requestedWindMode = PilotMode.WIND_AWA
+                        }
+                        raw
                     }
-                    raw
                 }
             }
         }
+    }
+
+    fun setDemoMode(enabled: Boolean) {
+        if (enabled == _demoMode.value) return
+        _demoMode.value = enabled
+        prefs.edit().putBoolean(KEY_DEMO_MODE, enabled).apply()
+
+        // Tear down old client, create new one
+        collectJob?.cancel()
+        client.destroy()
+        client = createClient()
+        _displayState.value = AutopilotState()
+        requestedWindMode = PilotMode.WIND_AWA
+        startClient()
     }
 
     fun updateServerUrl(url: String) {
@@ -149,6 +178,7 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
 
     override fun onCleared() {
         super.onCleared()
+        collectJob?.cancel()
         client.destroy()
     }
 }

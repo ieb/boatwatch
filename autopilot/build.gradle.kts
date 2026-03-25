@@ -17,12 +17,8 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("boolean", "FAKE_HTTP", "true")
-            buildConfigField("String", "DEFAULT_URL", "\"http://10.0.2.2:8080\"")
         }
         release {
-            buildConfigField("boolean", "FAKE_HTTP", "false")
-            buildConfigField("String", "DEFAULT_URL", "\"http://boatsystems.local\"")
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -33,7 +29,6 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 
     composeOptions {
