@@ -1,6 +1,13 @@
 # BoatWatch
 
+
 WearOS apps for a Galaxy Watch 6 Classic (WearOS 5.0) that communicate over WiFi with custom ESP32 firmware ([N2KNMEA0183Wifi](https://github.com/ieb/N2KNMEA0183Wifi)).
+
+## Why ?
+
+Over the years I have built a number of hand held controls for use on a boat while sailing. Generally they have been clunky and substandard, not very pleasant to use. No surprise since I am 1 engineer with limited resources and not running a multi million $ R&D organisation manucaturing millions of units. So this is an alternative approach, using a wearOS watch in my case a cheap second hand Galaxy Watch 6 classic which is reasonably waterproof, has ok battery life and connectivity as the hardware platform for some very simple but usefull apps. Previously I used a web based app on my phone for battery monitoring which was a pain, and a Raymarine remote on a lanyard for the autopilot control. If a watch works at sea for real remains to be seen. Could be a disaster.
+
+## The Apps
 
 Two standalone apps:
 
