@@ -20,6 +20,9 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
 
     private val prefs = application.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    private val _demoMode = MutableStateFlow(prefs.getBoolean(KEY_DEMO_MODE, false))
+    val demoMode: StateFlow<Boolean> = _demoMode
+
     private var dataSource: BatteryDataSource = createDataSource()
 
     private val _state = MutableStateFlow(BatteryState())
@@ -35,9 +38,6 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
     private val _urlHistory = MutableStateFlow(loadUrlHistory())
     val urlHistory: StateFlow<List<String>> = _urlHistory
 
-    private val _demoMode = MutableStateFlow(prefs.getBoolean(KEY_DEMO_MODE, false))
-    val demoMode: StateFlow<Boolean> = _demoMode
-
     init {
         startDataSource()
     }
@@ -52,16 +52,19 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
         forwardState()
     }
 
+    @Volatile private var forwardThread: Thread? = null
+
     private fun forwardState() {
-        // Direct delegation — the flows update in-place
-        // We re-point our mutable flows to the current data source values
+        forwardThread?.interrupt()
         val ds = dataSource
-        Thread {
-            while (true) {
-                _state.value = ds.state.value
-                _connectionStatus.value = ds.connectionStatus.value
-                Thread.sleep(100)
-            }
+        forwardThread = Thread {
+            try {
+                while (!Thread.currentThread().isInterrupted) {
+                    _state.value = ds.state.value
+                    _connectionStatus.value = ds.connectionStatus.value
+                    Thread.sleep(100)
+                }
+            } catch (_: InterruptedException) { }
         }.apply { isDaemon = true; start() }
     }
 

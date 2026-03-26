@@ -25,6 +25,9 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val prefs = application.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    private val _demoMode = MutableStateFlow(prefs.getBoolean(KEY_DEMO_MODE, false))
+    val demoMode: StateFlow<Boolean> = _demoMode
+
     private var client: AutopilotHttpClient = createClient()
     private var collectJob: Job? = null
 
@@ -45,9 +48,6 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _urlHistory = MutableStateFlow(loadUrlHistory())
     val urlHistory: StateFlow<List<String>> = _urlHistory
-
-    private val _demoMode = MutableStateFlow(prefs.getBoolean(KEY_DEMO_MODE, false))
-    val demoMode: StateFlow<Boolean> = _demoMode
 
     init {
         startClient()

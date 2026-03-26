@@ -3,6 +3,7 @@ package uk.co.tfd.boatwatch.battery.data
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.os.Build
 import kotlinx.coroutines.*
 import java.net.HttpURLConnection
 import java.net.URL
@@ -11,23 +12,33 @@ data class DiscoveredServer(val name: String, val url: String)
 
 object ServerDiscovery {
 
+    private val isEmulator: Boolean by lazy {
+        Build.FINGERPRINT.contains("generic") ||
+        Build.FINGERPRINT.contains("emulator") ||
+        Build.MODEL.contains("Emulator") ||
+        Build.MODEL.contains("Android SDK") ||
+        Build.HARDWARE.contains("goldfish") ||
+        Build.HARDWARE.contains("ranchu") ||
+        Build.PRODUCT.contains("sdk") ||
+        Build.PRODUCT.contains("emulator")
+    }
+
     suspend fun discover(context: Context, timeoutMs: Long = 5000): List<DiscoveredServer> =
         coroutineScope {
             val results = mutableListOf<DiscoveredServer>()
             val lock = Any()
 
-            // Probe boatsystems.local directly
+            // Probe known URLs in parallel
+            val urls = mutableListOf("http://boatsystems.local", "http://boatsystems.local:8080")
+            if (isEmulator) {
+                urls.addAll(listOf("http://10.0.2.2:8080", "http://10.0.2.2"))
+            }
             val probeJob = async(Dispatchers.IO) {
-                probeUrl("http://boatsystems.local")?.let {
-                    synchronized(lock) { results.add(it) }
-                }
-                probeUrl("http://boatsystems.local:8080")?.let {
-                    synchronized(lock) { results.add(it) }
-                }
-                // Emulator host
-                probeUrl("http://10.0.2.2:8080")?.let {
-                    synchronized(lock) { results.add(it) }
-                }
+                urls.map { url ->
+                    async {
+                        probeUrl(url)?.let { synchronized(lock) { results.add(it) } }
+                    }
+                }.awaitAll()
             }
 
             // NSD service discovery
@@ -48,7 +59,7 @@ object ServerDiscovery {
     private fun probeUrl(urlStr: String): DiscoveredServer? {
         return try {
             val conn = URL("$urlStr/api/store").openConnection() as HttpURLConnection
-            conn.requestMethod = "HEAD"
+            conn.requestMethod = "GET"
             conn.connectTimeout = 2000
             conn.readTimeout = 2000
             conn.connect()
@@ -82,7 +93,9 @@ object ServerDiscovery {
                     override fun onServiceResolved(si: NsdServiceInfo) {
                         val host = si.host?.hostAddress ?: return
                         val port = si.port
-                        val url = "http://$host" + if (port != 80) ":$port" else ""
+                        // In emulator, remap host IPs to 10.0.2.2
+                        val effectiveHost = if (isEmulator) "10.0.2.2" else host
+                        val url = "http://$effectiveHost" + if (port != 80) ":$port" else ""
                         val name = si.serviceName ?: host
                         synchronized(lock) {
                             results.add(DiscoveredServer(name, url))

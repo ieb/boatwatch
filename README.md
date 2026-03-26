@@ -5,7 +5,18 @@ WearOS apps for a Galaxy Watch 6 Classic (WearOS 5.0) that communicate over WiFi
 Two standalone apps:
 
 - **Battery Monitor** — displays voltage, current, SOC, cell voltages, and temperatures from a 4-cell LiFePO4 pack via JBD BMS
+
+![Battery Screen](./docs/battery.png)
+
 - **Autopilot Control** — controls a Raymarine autopilot (mode switching, heading/wind adjustments) via NMEA 2000 commands
+
+![Pilot Standby Screen](./docs/pilot_standby.png)
+![Pilot HDG Screen](./docs/pilot_hdg.png)
+
+- **Settings** - both apps allow the server to be found and selected
+
+![Settings Screen](./docs/settings.png)
+
 
 ## Prerequisites
 

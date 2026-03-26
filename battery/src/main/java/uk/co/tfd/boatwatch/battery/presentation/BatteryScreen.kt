@@ -59,13 +59,13 @@ fun BatteryScreen(
 
     val statusText = when {
         state.hasError -> "ERROR"
-        state.isCharging -> "CHARGING"
+        state.isCharging -> "CHARGE"
         state.isDischarging -> "DISCHARGE"
-        state.healthPercent >= 80 -> "HEALTHY"
-        state.healthPercent >= 50 -> "FAIR"
-        state.healthPercent >= 0 -> "WORN"
         else -> ""
     }
+
+    val chargeFetOn = (state.fetStatus and 0x01) != 0
+    val dischargeFetOn = (state.fetStatus and 0x02) != 0
 
     val healthText = when {
         state.hasError -> "ERROR"
@@ -232,7 +232,95 @@ fun BatteryScreen(
                 }
             }
 
-            // Connection indicator — bottom left
+            // Arc bar meters: current (outer), SOC (inner)
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val canvas = drawContext.canvas.nativeCanvas
+                val barWidth = with(density) { 8.dp.toPx() }
+                val barGap = with(density) { 4.dp.toPx() }
+                val outerInset = with(density) { 28.dp.toPx() }
+                val startAngle = 135f
+                val maxSweep = 270f
+                val halfSweep = maxSweep / 2f  // 135° each side from 12 o'clock
+
+                // Track (background) paint
+                val trackPaint = android.graphics.Paint().apply {
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeWidth = barWidth
+                    strokeCap = android.graphics.Paint.Cap.ROUND
+                    isAntiAlias = true
+                    color = android.graphics.Color.argb(40, 255, 255, 255)
+                }
+
+                // Foreground paint
+                val barPaint = android.graphics.Paint().apply {
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeWidth = barWidth
+                    strokeCap = android.graphics.Paint.Cap.ROUND
+                    isAntiAlias = true
+                }
+
+                // Current (outer) — ±60A, 12 o'clock = 0, left = -60, right = +60
+                // 12 o'clock = 270°. Negative draws CCW from 270°, positive draws CW from 270°.
+                val currentRadius = centerPx - outerInset
+                val currentRect = android.graphics.RectF(
+                    centerPx - currentRadius, centerPx - currentRadius,
+                    centerPx + currentRadius, centerPx + currentRadius
+                )
+                canvas.drawArc(currentRect, startAngle, maxSweep, false, trackPaint)
+                if (!state.current.isNaN() && state.current != 0.0) {
+                    val clampedCurrent = state.current.coerceIn(-60.0, 60.0).toFloat()
+                    val currentColor = if (clampedCurrent < 0) SOC_RED else SOC_GREEN
+                    // Flat cap at zero (start), round cap at value end
+                    val currentPaint = android.graphics.Paint().apply {
+                        style = android.graphics.Paint.Style.STROKE
+                        strokeWidth = barWidth
+                        isAntiAlias = true
+                        color = currentColor.toArgb()
+                    }
+                    val frac = kotlin.math.abs(clampedCurrent) / 60f
+                    val sweep = halfSweep * frac
+                    // Draw flat portion (all but last ~1° for the round tip)
+                    val tipSweep = Math.toDegrees((barWidth * 0.5 / currentRadius).toDouble()).toFloat()
+                    if (sweep > tipSweep) {
+                        currentPaint.strokeCap = android.graphics.Paint.Cap.BUTT
+                        if (clampedCurrent >= 0) {
+                            canvas.drawArc(currentRect, 270f, sweep - tipSweep, false, currentPaint)
+                        } else {
+                            canvas.drawArc(currentRect, 270f - sweep + tipSweep, sweep - tipSweep, false, currentPaint)
+                        }
+                        // Round tip at the value end
+                        currentPaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                        if (clampedCurrent >= 0) {
+                            canvas.drawArc(currentRect, 270f + sweep - tipSweep, tipSweep, false, currentPaint)
+                        } else {
+                            canvas.drawArc(currentRect, 270f - sweep, tipSweep, false, currentPaint)
+                        }
+                    } else {
+                        currentPaint.strokeCap = android.graphics.Paint.Cap.BUTT
+                        if (clampedCurrent >= 0) {
+                            canvas.drawArc(currentRect, 270f, sweep, false, currentPaint)
+                        } else {
+                            canvas.drawArc(currentRect, 270f - sweep, sweep, false, currentPaint)
+                        }
+                    }
+                }
+
+                // SOC (inner) — 0-100%
+                val socRadius = currentRadius - barWidth - barGap
+                val socFrac = if (state.stateOfCharge >= 0)
+                    (state.stateOfCharge.coerceIn(0, 100) / 100f) else 0f
+                val socRect = android.graphics.RectF(
+                    centerPx - socRadius, centerPx - socRadius,
+                    centerPx + socRadius, centerPx + socRadius
+                )
+                canvas.drawArc(socRect, startAngle, maxSweep, false, trackPaint)
+                if (socFrac > 0f) {
+                    barPaint.color = socColor.toArgb()
+                    canvas.drawArc(socRect, startAngle, maxSweep * socFrac, false, barPaint)
+                }
+            }
+
+            // Connection indicator — bottom center
             val dotColor = when (connectionStatus) {
                 ConnectionStatus.CONNECTED -> SOC_GREEN
                 ConnectionStatus.ERROR -> SOC_RED
@@ -242,8 +330,8 @@ fun BatteryScreen(
             @OptIn(ExperimentalFoundationApi::class)
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 28.dp, bottom = 28.dp)
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 4.dp)
                     .size(24.dp)
                     .clip(CircleShape)
                     .combinedClickable(
@@ -269,14 +357,16 @@ fun BatteryScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Status line
-            Text(
-                text = "STATUS: $statusText",
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                color = LABEL_COLOR,
-                textAlign = TextAlign.Center,
-                letterSpacing = 1.sp,
-            )
+            if (statusText.isNotEmpty()) {
+                Text(
+                    text = statusText,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = LABEL_COLOR,
+                    textAlign = TextAlign.Center,
+                    letterSpacing = 1.sp,
+                )
+            }
 
             Spacer(modifier = Modifier.height(2.dp))
 
@@ -360,6 +450,45 @@ fun BatteryScreen(
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = healthColor,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            // FET status indicator pills
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val chargeColor = if (chargeFetOn) SOC_GREEN else SOC_RED
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(chargeColor.copy(alpha = 0.2f))
+                        .padding(horizontal = 8.dp, vertical = 1.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "c",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = chargeColor,
+                    )
+                }
+                val dischargeColor = if (dischargeFetOn) SOC_GREEN else SOC_RED
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(dischargeColor.copy(alpha = 0.2f))
+                        .padding(horizontal = 8.dp, vertical = 1.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "d",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = dischargeColor,
                     )
                 }
             }
