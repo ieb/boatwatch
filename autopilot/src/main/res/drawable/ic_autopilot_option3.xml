@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Autopilot icon option 3: Rudder/tiller with heading arc -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dark background circle -->
+    <path
+        android:fillColor="#0A1A2A"
+        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
+    <!-- Heading arc (top 180 degrees) -->
+    <path
+        android:pathData="M54,54m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0"
+        android:strokeColor="#1A3A4A"
+        android:strokeWidth="3"
+        android:fillColor="#00000000"
+        android:trimPathStart="0"
+        android:trimPathEnd="0.5" />
+    <!-- Active heading indicator -->
+    <path
+        android:pathData="M54,54m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0"
+        android:strokeColor="#4CAF50"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:trimPathStart="0.15"
+        android:trimPathEnd="0.35" />
+    <!-- North marker triangle -->
+    <path
+        android:fillColor="#EF5350"
+        android:pathData="M54,18 L57,24 L51,24 Z" />
+    <!-- Rudder blade (vertical) -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M51,38 L57,38 L57,80 L51,80 Z" />
+    <!-- Rudder stock (top) -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M52.5,34 L55.5,34 L55.5,42 L52.5,42 Z" />
+    <!-- Tiller crossbar -->
+    <path
+        android:fillColor="#FFB74D"
+        android:pathData="M38,36 L70,36 L70,40 L38,40 Z"  />
+    <!-- Tiller rounded ends -->
+    <path
+        android:fillColor="#FFB74D"
+        android:pathData="M38,38m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path
+        android:fillColor="#FFB74D"
+        android:pathData="M70,38m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <!-- Rudder pivot -->
+    <path
+        android:fillColor="#FFB74D"
+        android:pathData="M54,38m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+    <path
+        android:fillColor="#0A1A2A"
+        android:pathData="M54,38m-2,0a2,2 0,1 1,4 0a2,4 0,1 1,-4 0" />
+    <!-- Rudder blade shape (tapered) -->
+    <path
+        android:fillColor="#2A6A8A"
+        android:pathData="M51,60 L54,80 L57,60 Z" />
+</vector>

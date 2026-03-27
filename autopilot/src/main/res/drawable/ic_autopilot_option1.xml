@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Autopilot icon option 1: Ship's wheel / helm -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dark background circle -->
+    <path
+        android:fillColor="#0A1A2A"
+        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
+    <!-- Outer wheel ring -->
+    <path
+        android:pathData="M54,54m-28,0a28,28 0,1 1,56 0a28,28 0,1 1,-56 0"
+        android:strokeColor="#4FC3F7"
+        android:strokeWidth="4"
+        android:fillColor="#00000000" />
+    <!-- Inner hub -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M54,54m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+    <path
+        android:fillColor="#0A1A2A"
+        android:pathData="M54,54m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <!-- 8 spokes -->
+    <path android:fillColor="#4FC3F7"
+        android:pathData="M52.5,28 L55.5,28 L55.5,48 L52.5,48 Z" />
+    <path android:fillColor="#4FC3F7"
+        android:pathData="M52.5,60 L55.5,60 L55.5,80 L52.5,80 Z" />
+    <path android:fillColor="#4FC3F7"
+        android:pathData="M28,52.5 L48,52.5 L48,55.5 L28,55.5 Z" />
+    <path android:fillColor="#4FC3F7"
+        android:pathData="M60,52.5 L80,52.5 L80,55.5 L60,55.5 Z" />
+    <!-- Diagonal spokes -->
+    <path android:fillColor="#4FC3F7"
+        android:pathData="M35.4,33.3 L37.5,31.2 L51.8,45.5 L49.7,47.6 Z" />
+    <path android:fillColor="#4FC3F7"
+        android:pathData="M56.2,60.4 L58.3,58.3 L72.6,72.6 L70.5,74.7 Z" />
+    <path android:fillColor="#4FC3F7"
+        android:pathData="M70.5,31.2 L72.6,33.3 L58.3,47.6 L56.2,45.5 Z" />
+    <path android:fillColor="#4FC3F7"
+        android:pathData="M35.4,72.6 L49.7,58.3 L51.8,60.4 L37.5,74.7 Z" />
+    <!-- Handle knobs at spoke ends -->
+    <path android:fillColor="#FFB74D"
+        android:pathData="M54,26m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <path android:fillColor="#FFB74D"
+        android:pathData="M54,82m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <path android:fillColor="#FFB74D"
+        android:pathData="M26,54m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <path android:fillColor="#FFB74D"
+        android:pathData="M82,54m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <path android:fillColor="#FFB74D"
+        android:pathData="M34.2,34.2m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <path android:fillColor="#FFB74D"
+        android:pathData="M73.8,73.8m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <path android:fillColor="#FFB74D"
+        android:pathData="M73.8,34.2m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <path android:fillColor="#FFB74D"
+        android:pathData="M34.2,73.8m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+</vector>

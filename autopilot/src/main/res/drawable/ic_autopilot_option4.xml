@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Autopilot icon option 4: Compass with helm wheel and north arrow -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Dark background -->
+    <path
+        android:fillColor="#0D1B1E"
+        android:pathData="M0,0h108v108h-108z" />
+
+    <!-- Outer cyan ring -->
+    <path
+        android:pathData="M54,54m-42,0a42,42 0,1 1,84 0a42,42 0,1 1,-84 0"
+        android:strokeColor="#3DDBC6"
+        android:strokeWidth="5"
+        android:fillColor="#00000000" />
+
+    <!-- Dark compass face circle -->
+    <path
+        android:fillColor="#1A2E30"
+        android:pathData="M54,54m-33,0a33,33 0,1 1,66 0a33,33 0,1 1,-66 0" />
+
+    <!-- Compass ring (darker inner) -->
+    <path
+        android:pathData="M54,54m-33,0a33,33 0,1 1,66 0a33,33 0,1 1,-66 0"
+        android:strokeColor="#2A4A4A"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000" />
+
+    <!-- Compass tick marks (12 marks around the ring) -->
+    <path android:fillColor="#3A5A5A" android:pathData="M53.5,22 L54.5,22 L54.5,26 L53.5,26 Z" />
+    <path android:fillColor="#3A5A5A" android:pathData="M53.5,82 L54.5,82 L54.5,86 L53.5,86 Z" />
+    <path android:fillColor="#3A5A5A" android:pathData="M22,53.5 L26,53.5 L26,54.5 L22,54.5 Z" />
+    <path android:fillColor="#3A5A5A" android:pathData="M82,53.5 L86,53.5 L86,54.5 L82,54.5 Z" />
+    <!-- Diagonal ticks -->
+    <path android:fillColor="#2A4A4A" android:pathData="M30.5,30 L31.2,30.7 L28,33.9 L27.3,33.2 Z" />
+    <path android:fillColor="#2A4A4A" android:pathData="M76.8,30 L77.5,30.7 L80,33.2 L79.3,33.9 Z" />
+    <path android:fillColor="#2A4A4A" android:pathData="M27.3,74.1 L28,74.8 L31.2,77.3 L30.5,78 Z" />
+    <path android:fillColor="#2A4A4A" android:pathData="M79.3,74.1 L80,74.8 L77.5,78 L76.8,77.3 Z" />
+
+    <!-- N letter -->
+    <path
+        android:fillColor="#3DDBC6"
+        android:pathData="M50.5,25 L51.5,25 L51.5,30.5 L50.5,30.5 Z" />
+    <path
+        android:fillColor="#3DDBC6"
+        android:pathData="M50.5,25 L56.5,30.5 L56.5,25 L57.5,25 L57.5,31.5 L51.5,26 L51.5,30.5 L50.5,30.5 Z" />
+
+    <!-- S letter (bottom) -->
+    <path
+        android:pathData="M51,77 C51,76 52,75.5 54,75.5 C56,75.5 57,76 57,77 C57,78 56,78.5 54,78.5 C52,78.5 51,79 51,80 C51,81 52,81.5 54,81.5 C56,81.5 57,81 57,80"
+        android:strokeColor="#4A6A6A"
+        android:strokeWidth="1.2"
+        android:fillColor="#00000000" />
+
+    <!-- E letter (left) -->
+    <path
+        android:fillColor="#4A6A6A"
+        android:pathData="M24,51 L28,51 L28,52 L25,52 L25,53.5 L27.5,53.5 L27.5,54.5 L25,54.5 L25,56 L28,56 L28,57 L24,57 Z" />
+
+    <!-- W would be at right but image shows S, keeping consistent -->
+
+    <!-- White inner ring (helm housing) -->
+    <path
+        android:fillColor="#E8ECF0"
+        android:pathData="M54,54m-18,0a18,18 0,1 1,36 0a18,18 0,1 1,-36 0" />
+
+    <!-- Small tick marks on white ring -->
+    <path android:fillColor="#B0B8C0" android:pathData="M53.7,36.5 L54.3,36.5 L54.3,38.5 L53.7,38.5 Z" />
+    <path android:fillColor="#B0B8C0" android:pathData="M53.7,69.5 L54.3,69.5 L54.3,71.5 L53.7,71.5 Z" />
+    <path android:fillColor="#B0B8C0" android:pathData="M36.5,53.7 L38.5,53.7 L38.5,54.3 L36.5,54.3 Z" />
+    <path android:fillColor="#B0B8C0" android:pathData="M69.5,53.7 L71.5,53.7 L71.5,54.3 L69.5,54.3 Z" />
+    <!-- More ticks at 30deg intervals -->
+    <path android:fillColor="#C0C8D0" android:pathData="M62.7,38 L63.2,38.3 L62.2,40 L61.7,39.7 Z" />
+    <path android:fillColor="#C0C8D0" android:pathData="M44.3,68 L44.8,68.3 L45.8,70 L45.3,69.7 Z" />
+    <path android:fillColor="#C0C8D0" android:pathData="M68,44.3 L68.3,44.8 L70,45.8 L69.7,45.3 Z" />
+    <path android:fillColor="#C0C8D0" android:pathData="M38,62.7 L38.3,63.2 L40,62.2 L39.7,61.7 Z" />
+
+    <!-- North arrow (large, behind helm, teal/cyan) -->
+    <path
+        android:fillColor="#3DDBC6"
+        android:pathData="M54,20 L62,52 L54,48 Z" />
+    <path
+        android:fillColor="#2BB5A0"
+        android:pathData="M54,20 L46,52 L54,48 Z" />
+
+    <!-- Helm wheel - dark teal on white circle -->
+    <!-- Helm outer ring -->
+    <path
+        android:pathData="M54,54m-13,0a13,13 0,1 1,26 0a13,26 0,1 1,-26 0"
+        android:strokeColor="#2A5A5A"
+        android:strokeWidth="3"
+        android:fillColor="#00000000" />
+
+    <!-- Helm inner ring -->
+    <path
+        android:pathData="M54,54m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0"
+        android:strokeColor="#2A5A5A"
+        android:strokeWidth="2.5"
+        android:fillColor="#00000000" />
+
+    <!-- Helm spokes (8) -->
+    <path android:fillColor="#2A5A5A" android:pathData="M53.2,41.5 L54.8,41.5 L54.8,48.5 L53.2,48.5 Z" />
+    <path android:fillColor="#2A5A5A" android:pathData="M53.2,59.5 L54.8,59.5 L54.8,66.5 L53.2,66.5 Z" />
+    <path android:fillColor="#2A5A5A" android:pathData="M41.5,53.2 L48.5,53.2 L48.5,54.8 L41.5,54.8 Z" />
+    <path android:fillColor="#2A5A5A" android:pathData="M59.5,53.2 L66.5,53.2 L66.5,54.8 L59.5,54.8 Z" />
+    <!-- Diagonal spokes -->
+    <path android:fillColor="#2A5A5A" android:pathData="M44.6,43.5 L45.7,42.4 L50.2,46.9 L49.1,48 Z" />
+    <path android:fillColor="#2A5A5A" android:pathData="M57.8,60 L58.9,58.9 L63.4,63.4 L62.3,64.5 Z" />
+    <path android:fillColor="#2A5A5A" android:pathData="M62.3,42.4 L63.4,43.5 L58.9,48 L57.8,46.9 Z" />
+    <path android:fillColor="#2A5A5A" android:pathData="M44.6,63.4 L49.1,58.9 L50.2,60 L45.7,64.5 Z" />
+
+    <!-- Helm handle knobs -->
+    <path android:fillColor="#2A5A5A" android:pathData="M54,41m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:fillColor="#2A5A5A" android:pathData="M54,67m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:fillColor="#2A5A5A" android:pathData="M41,54m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:fillColor="#2A5A5A" android:pathData="M67,54m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:fillColor="#2A5A5A" android:pathData="M44.8,44.8m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0" />
+    <path android:fillColor="#2A5A5A" android:pathData="M63.2,63.2m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0" />
+    <path android:fillColor="#2A5A5A" android:pathData="M63.2,44.8m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0" />
+    <path android:fillColor="#2A5A5A" android:pathData="M44.8,63.2m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0" />
+
+    <!-- Center hub -->
+    <path
+        android:fillColor="#8A9AA0"
+        android:pathData="M54,54m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+    <!-- Center highlight -->
+    <path
+        android:fillColor="#3DDBC6"
+        android:pathData="M54,53m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0" />
+</vector>

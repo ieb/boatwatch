@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Battery icon option 1: Classic battery with charge bars -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dark background circle -->
+    <path
+        android:fillColor="#0A1A2A"
+        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
+    <!-- Battery body outline -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M38,34 L38,30 L44,30 L44,28 L64,28 L64,30 L70,30 L70,34 L70,78 L38,78 Z" />
+    <!-- Battery body inner (dark) -->
+    <path
+        android:fillColor="#0A1A2A"
+        android:pathData="M41,33 L67,33 L67,75 L41,75 Z" />
+    <!-- Charge bar 1 (bottom) -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M44,67 L64,67 L64,73 L44,73 Z" />
+    <!-- Charge bar 2 -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M44,58 L64,58 L64,64 L44,64 Z" />
+    <!-- Charge bar 3 -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M44,49 L64,49 L64,55 L44,55 Z" />
+    <!-- Charge bar 4 (top) -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M44,40 L64,40 L64,46 L44,46 Z" />
+</vector>

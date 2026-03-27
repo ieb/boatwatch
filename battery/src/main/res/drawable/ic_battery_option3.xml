@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Battery icon option 3: Circular gauge with battery symbol -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dark background circle -->
+    <path
+        android:fillColor="#0A1A2A"
+        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
+    <!-- Gauge arc (270 degrees, gap at bottom) -->
+    <path
+        android:pathData="M54,54m-30,0a30,30 0,1 1,60 0a30,30 0,1 1,-60 0"
+        android:strokeColor="#1A3A4A"
+        android:strokeWidth="5"
+        android:fillColor="#00000000"
+        android:trimPathStart="0.125"
+        android:trimPathEnd="0.875" />
+    <!-- Gauge fill (green, ~75%) -->
+    <path
+        android:pathData="M54,54m-30,0a30,30 0,1 1,60 0a30,30 0,1 1,-60 0"
+        android:strokeColor="#4CAF50"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:trimPathStart="0.125"
+        android:trimPathEnd="0.6875" />
+    <!-- Small battery icon in center -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M48,44 L48,42 L51,42 L51,41 L57,41 L57,42 L60,42 L60,44 L60,66 L48,66 Z" />
+    <path
+        android:fillColor="#0A1A2A"
+        android:pathData="M50,45 L58,45 L58,64 L50,64 Z" />
+    <!-- Fill bars -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M51,59 L57,59 L57,63 L51,63 Z" />
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M51,53 L57,53 L57,57 L51,57 Z" />
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M51,47 L57,47 L57,51 L51,51 Z" />
+</vector>

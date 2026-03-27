@@ -58,14 +58,24 @@ object ServerDiscovery {
 
     private fun probeUrl(urlStr: String): DiscoveredServer? {
         return try {
-            val conn = URL("$urlStr/api/store").openConnection() as HttpURLConnection
+            val conn = URL("$urlStr/api/seasmart").openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
             conn.connectTimeout = 2000
             conn.readTimeout = 2000
             conn.connect()
             val code = conn.responseCode
+            if (code !in 200..399) { conn.disconnect(); return null }
+            // Read first chunk to validate — seasmart is a streaming endpoint,
+            // so just check the first few lines for $PCDIN
+            val reader = conn.inputStream.bufferedReader()
+            var valid = false
+            repeat(10) {
+                val line = reader.readLine() ?: return@repeat
+                if (line.startsWith("\$PCDIN")) { valid = true; return@repeat }
+            }
+            reader.close()
             conn.disconnect()
-            if (code in 200..399) {
+            if (valid) {
                 val host = URL(urlStr).host
                 DiscoveredServer(host, urlStr)
             } else null
@@ -97,8 +107,12 @@ object ServerDiscovery {
                         val effectiveHost = if (isEmulator) "10.0.2.2" else host
                         val url = "http://$effectiveHost" + if (port != 80) ":$port" else ""
                         val name = si.serviceName ?: host
-                        synchronized(lock) {
-                            results.add(DiscoveredServer(name, url))
+                        // Validate the server has our API
+                        val server = probeUrl(url)
+                        if (server != null) {
+                            synchronized(lock) {
+                                results.add(DiscoveredServer(name, url))
+                            }
                         }
                     }
                 })

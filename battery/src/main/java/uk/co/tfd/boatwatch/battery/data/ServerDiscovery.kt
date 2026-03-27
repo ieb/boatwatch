@@ -64,8 +64,12 @@ object ServerDiscovery {
             conn.readTimeout = 2000
             conn.connect()
             val code = conn.responseCode
+            if (code !in 200..399) { conn.disconnect(); return null }
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
             conn.disconnect()
-            if (code in 200..399) {
+            // Validate: response must contain a B, line (battery data)
+            val hasBLine = body.lineSequence().any { it.startsWith("B,") }
+            if (hasBLine) {
                 val host = URL(urlStr).host
                 DiscoveredServer(host, urlStr)
             } else null
@@ -97,8 +101,12 @@ object ServerDiscovery {
                         val effectiveHost = if (isEmulator) "10.0.2.2" else host
                         val url = "http://$effectiveHost" + if (port != 80) ":$port" else ""
                         val name = si.serviceName ?: host
-                        synchronized(lock) {
-                            results.add(DiscoveredServer(name, url))
+                        // Validate the server has our API
+                        val server = probeUrl(url)
+                        if (server != null) {
+                            synchronized(lock) {
+                                results.add(DiscoveredServer(name, url))
+                            }
                         }
                     }
                 })

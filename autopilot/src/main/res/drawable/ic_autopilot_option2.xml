@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Autopilot icon option 2: Compass rose -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dark background circle -->
+    <path
+        android:fillColor="#0A1A2A"
+        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
+    <!-- Outer ring -->
+    <path
+        android:pathData="M54,54m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0"
+        android:strokeColor="#2A5A6A"
+        android:strokeWidth="2"
+        android:fillColor="#00000000" />
+    <!-- Cardinal tick marks -->
+    <path android:fillColor="#4FC3F7" android:pathData="M53,22 L55,22 L55,28 L53,28 Z" />
+    <path android:fillColor="#4FC3F7" android:pathData="M53,80 L55,80 L55,86 L53,86 Z" />
+    <path android:fillColor="#4FC3F7" android:pathData="M22,53 L28,53 L28,55 L22,55 Z" />
+    <path android:fillColor="#4FC3F7" android:pathData="M80,53 L86,53 L86,55 L80,55 Z" />
+    <!-- North pointer (bright, filled) -->
+    <path
+        android:fillColor="#EF5350"
+        android:pathData="M54,28 L60,54 L54,50 Z" />
+    <path
+        android:fillColor="#B71C1C"
+        android:pathData="M54,28 L48,54 L54,50 Z" />
+    <!-- South pointer -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M54,80 L60,54 L54,58 Z" />
+    <path
+        android:fillColor="#2A6A8A"
+        android:pathData="M54,80 L48,54 L54,58 Z" />
+    <!-- East pointer -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M80,54 L54,48 L58,54 Z" />
+    <path
+        android:fillColor="#2A6A8A"
+        android:pathData="M80,54 L54,60 L58,54 Z" />
+    <!-- West pointer -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M28,54 L54,48 L50,54 Z" />
+    <path
+        android:fillColor="#2A6A8A"
+        android:pathData="M28,54 L54,60 L50,54 Z" />
+    <!-- Center dot -->
+    <path
+        android:fillColor="#FFB74D"
+        android:pathData="M54,54m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+</vector>

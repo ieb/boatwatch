@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Battery icon option 2: Lightning bolt in circle (energy/power) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dark background circle -->
+    <path
+        android:fillColor="#0A1A2A"
+        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
+    <!-- Outer ring -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M54,54m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0"
+        android:strokeWidth="0" />
+    <path
+        android:fillColor="#0A1A2A"
+        android:pathData="M54,54m-28,0a28,28 0,1 1,56 0a28,28 0,1 1,-56 0" />
+    <!-- Lightning bolt -->
+    <path
+        android:fillColor="#FFB74D"
+        android:pathData="M58,30 L44,56 L52,56 L50,78 L66,50 L57,50 Z" />
+</vector>
