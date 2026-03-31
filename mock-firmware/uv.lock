@@ -32,50 +32,6 @@ wheels = [
 ]
 
 [[package]]
-name = "bleak-winrt"
-version = "1.2.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a9/7a/009ee84b7860a8c5345529026df32a5caa5da767a840a6f7bf259f53a2ed/bleak-winrt-1.2.0.tar.gz", hash = "sha256:0577d070251b9354fc6c45ffac57e39341ebb08ead014b1bdbd43e211d2ce1d6", size = 3855591 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/59/d8/a9d15da86bfac0426beda775f4ea7a3bfc862e12e7b6735c458ffcb20c3d/bleak_winrt-1.2.0-cp311-cp311-win32.whl", hash = "sha256:9449cdb942f22c9892bc1ada99e2ccce9bea8a8af1493e81fefb6de2cb3a7b80", size = 446383 },
-    { url = "https://files.pythonhosted.org/packages/e4/ff/80fb7efa320059a096d6cde1fd869785000dde061e569c043273b69f89ba/bleak_winrt-1.2.0-cp311-cp311-win_amd64.whl", hash = "sha256:98c1b5a6a6c431ac7f76aa4285b752fe14a1c626bd8a1dfa56f66173ff120bee", size = 524891 },
-]
-
-[[package]]
-name = "bless"
-version = "0.2.6"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.12' and sys_platform == 'win32'",
-]
-dependencies = [
-    { name = "bleak", marker = "python_full_version >= '3.12' and sys_platform == 'win32'" },
-    { name = "pywin32", marker = "python_full_version >= '3.12' and sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f2/2a/7661d3f497be635109b2ac521e49f127e290aefbc6488384daa507e133d2/bless-0.2.6.tar.gz", hash = "sha256:a22baa2af3ec0abd90e21b803e09042003ebccb7fcffd2a9341f3652250aa153", size = 26042 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ac/da/69e33c374d19d4538afccd52eefc8a163486d438970acca40bd9c4794e49/bless-0.2.6-py3-none-any.whl", hash = "sha256:2b4b4ce8ee70a987886f22ca369e2093624aea315abe609bd01499f2d16056d1", size = 36285 },
-]
-
-[[package]]
-name = "bless"
-version = "0.3.0"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version < '3.12' or sys_platform != 'win32'",
-]
-dependencies = [
-    { name = "bleak", marker = "python_full_version < '3.12' or sys_platform != 'win32'" },
-    { name = "bleak-winrt", marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
-    { name = "dbus-next", marker = "sys_platform == 'linux'" },
-    { name = "pywin32", marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f0/58/9e070e52b96bd342ccc709489280d8d12a69d55a2cb12082365676fad05f/bless-0.3.0.tar.gz", hash = "sha256:5a62105dfe204be44ab36d20fb9071a994167d5ddd9fee722fb2b5612d7a9ea2", size = 33930 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5c/9f/2536a28f9cd8c7c98424d16c0e352ec43045e89f61ce5c31b344df3b3ae9/bless-0.3.0-py3-none-any.whl", hash = "sha256:29c5a87a100a43f1dddab29e46a5adfdc871d42f4d421f13ae5c7a0ec23e7a6b", size = 46597 },
-]
-
-[[package]]
 name = "dbus-fast"
 version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -105,15 +61,6 @@ wheels = [
 ]
 
 [[package]]
-name = "dbus-next"
-version = "0.2.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ce/45/6a40fbe886d60a8c26f480e7d12535502b5ba123814b3b9a0b002ebca198/dbus_next-0.2.3.tar.gz", hash = "sha256:f4eae26909332ada528c0a3549dda8d4f088f9b365153952a408e28023a626a5", size = 71112 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d2/fc/c0a3f4c4eaa5a22fbef91713474666e13d0ea2a69c84532579490a9f2cc8/dbus_next-0.2.3-py3-none-any.whl", hash = "sha256:58948f9aff9db08316734c0be2a120f6dc502124d9642f55e90ac82ffb16a18b", size = 57885 },
-]
-
-[[package]]
 name = "ifaddr"
 version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -128,15 +75,16 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "bleak" },
-    { name = "bless", version = "0.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' and sys_platform == 'win32'" },
-    { name = "bless", version = "0.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or sys_platform != 'win32'" },
+    { name = "pyobjc-framework-corebluetooth" },
+    { name = "pyobjc-framework-libdispatch" },
     { name = "zeroconf" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "bleak", specifier = ">=0.22.0" },
-    { name = "bless", specifier = ">=0.2.5" },
+    { name = "pyobjc-framework-corebluetooth", specifier = ">=10.0" },
+    { name = "pyobjc-framework-libdispatch", specifier = ">=10.0" },
     { name = "zeroconf", specifier = ">=0.131.0" },
 ]
 
@@ -159,7 +107,7 @@ name = "pyobjc-framework-cocoa"
 version = "12.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core", marker = "python_full_version < '3.12' or sys_platform != 'win32'" },
+    { name = "pyobjc-core" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/02/a3/16ca9a15e77c061a9250afbae2eae26f2e1579eb8ca9462ae2d2c71e1169/pyobjc_framework_cocoa-12.1.tar.gz", hash = "sha256:5556c87db95711b985d5efdaaf01c917ddd41d148b1e52a0c66b1a2e2c5c1640", size = 2772191 }
 wheels = [
@@ -176,8 +124,8 @@ name = "pyobjc-framework-corebluetooth"
 version = "12.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core", marker = "python_full_version < '3.12' or sys_platform != 'win32'" },
-    { name = "pyobjc-framework-cocoa", marker = "python_full_version < '3.12' or sys_platform != 'win32'" },
+    { name = "pyobjc-core" },
+    { name = "pyobjc-framework-cocoa" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/4b/25/d21d6cb3fd249c2c2aa96ee54279f40876a0c93e7161b3304bf21cbd0bfe/pyobjc_framework_corebluetooth-12.1.tar.gz", hash = "sha256:8060c1466d90bbb9100741a1091bb79975d9ba43911c9841599879fc45c2bbe0", size = 33157 }
 wheels = [
@@ -194,8 +142,8 @@ name = "pyobjc-framework-libdispatch"
 version = "12.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core", marker = "python_full_version < '3.12' or sys_platform != 'win32'" },
-    { name = "pyobjc-framework-cocoa", marker = "python_full_version < '3.12' or sys_platform != 'win32'" },
+    { name = "pyobjc-core" },
+    { name = "pyobjc-framework-cocoa" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/26/e8/75b6b9b3c88b37723c237e5a7600384ea2d84874548671139db02e76652b/pyobjc_framework_libdispatch-12.1.tar.gz", hash = "sha256:4035535b4fae1b5e976f3e0e38b6e3442ffea1b8aa178d0ca89faa9b8ecdea41", size = 38277 }
 wheels = [
@@ -205,25 +153,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/cc/40/49b1c1702114ee972678597393320d7b33f477e9d24f2a62f93d77f23dfb/pyobjc_framework_libdispatch-12.1-cp313-cp313t-macosx_10_13_universal2.whl", hash = "sha256:e9f49517e253716e40a0009412151f527005eec0b9a2311ac63ecac1bdf02332", size = 15938 },
     { url = "https://files.pythonhosted.org/packages/59/d8/7d60a70fc1a546c6cb482fe0595cb4bd1368d75c48d49e76d0bc6c0a2d0f/pyobjc_framework_libdispatch-12.1-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:0ebfd9e4446ab6528126bff25cfb09e4213ddf992b3208978911cfd3152e45f5", size = 15693 },
     { url = "https://files.pythonhosted.org/packages/99/32/15e08a0c4bb536303e1568e2ba5cae1ce39a2e026a03aea46173af4c7a2d/pyobjc_framework_libdispatch-12.1-cp314-cp314t-macosx_10_15_universal2.whl", hash = "sha256:23fc9915cba328216b6a736c7a48438a16213f16dfb467f69506300b95938cc7", size = 15976 },
-]
-
-[[package]]
-name = "pywin32"
-version = "311"
-source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7c/af/449a6a91e5d6db51420875c54f6aff7c97a86a3b13a0b4f1a5c13b988de3/pywin32-311-cp311-cp311-win32.whl", hash = "sha256:184eb5e436dea364dcd3d2316d577d625c0351bf237c4e9a5fabbcfa5a58b151", size = 8697031 },
-    { url = "https://files.pythonhosted.org/packages/51/8f/9bb81dd5bb77d22243d33c8397f09377056d5c687aa6d4042bea7fbf8364/pywin32-311-cp311-cp311-win_amd64.whl", hash = "sha256:3ce80b34b22b17ccbd937a6e78e7225d80c52f5ab9940fe0506a1a16f3dab503", size = 9508308 },
-    { url = "https://files.pythonhosted.org/packages/44/7b/9c2ab54f74a138c491aba1b1cd0795ba61f144c711daea84a88b63dc0f6c/pywin32-311-cp311-cp311-win_arm64.whl", hash = "sha256:a733f1388e1a842abb67ffa8e7aad0e70ac519e09b0f6a784e65a136ec7cefd2", size = 8703930 },
-    { url = "https://files.pythonhosted.org/packages/e7/ab/01ea1943d4eba0f850c3c61e78e8dd59757ff815ff3ccd0a84de5f541f42/pywin32-311-cp312-cp312-win32.whl", hash = "sha256:750ec6e621af2b948540032557b10a2d43b0cee2ae9758c54154d711cc852d31", size = 8706543 },
-    { url = "https://files.pythonhosted.org/packages/d1/a8/a0e8d07d4d051ec7502cd58b291ec98dcc0c3fff027caad0470b72cfcc2f/pywin32-311-cp312-cp312-win_amd64.whl", hash = "sha256:b8c095edad5c211ff31c05223658e71bf7116daa0ecf3ad85f3201ea3190d067", size = 9495040 },
-    { url = "https://files.pythonhosted.org/packages/ba/3a/2ae996277b4b50f17d61f0603efd8253cb2d79cc7ae159468007b586396d/pywin32-311-cp312-cp312-win_arm64.whl", hash = "sha256:e286f46a9a39c4a18b319c28f59b61de793654af2f395c102b4f819e584b5852", size = 8710102 },
-    { url = "https://files.pythonhosted.org/packages/a5/be/3fd5de0979fcb3994bfee0d65ed8ca9506a8a1260651b86174f6a86f52b3/pywin32-311-cp313-cp313-win32.whl", hash = "sha256:f95ba5a847cba10dd8c4d8fefa9f2a6cf283b8b88ed6178fa8a6c1ab16054d0d", size = 8705700 },
-    { url = "https://files.pythonhosted.org/packages/e3/28/e0a1909523c6890208295a29e05c2adb2126364e289826c0a8bc7297bd5c/pywin32-311-cp313-cp313-win_amd64.whl", hash = "sha256:718a38f7e5b058e76aee1c56ddd06908116d35147e133427e59a3983f703a20d", size = 9494700 },
-    { url = "https://files.pythonhosted.org/packages/04/bf/90339ac0f55726dce7d794e6d79a18a91265bdf3aa70b6b9ca52f35e022a/pywin32-311-cp313-cp313-win_arm64.whl", hash = "sha256:7b4075d959648406202d92a2310cb990fea19b535c7f4a78d3f5e10b926eeb8a", size = 8709318 },
-    { url = "https://files.pythonhosted.org/packages/c9/31/097f2e132c4f16d99a22bfb777e0fd88bd8e1c634304e102f313af69ace5/pywin32-311-cp314-cp314-win32.whl", hash = "sha256:b7a2c10b93f8986666d0c803ee19b5990885872a7de910fc460f9b0c2fbf92ee", size = 8840714 },
-    { url = "https://files.pythonhosted.org/packages/90/4b/07c77d8ba0e01349358082713400435347df8426208171ce297da32c313d/pywin32-311-cp314-cp314-win_amd64.whl", hash = "sha256:3aca44c046bd2ed8c90de9cb8427f581c479e594e99b5c0bb19b29c10fd6cb87", size = 9656800 },
-    { url = "https://files.pythonhosted.org/packages/c0/d2/21af5c535501a7233e734b8af901574572da66fcc254cb35d0609c9080dd/pywin32-311-cp314-cp314-win_arm64.whl", hash = "sha256:a508e2d9025764a8270f93111a970e1d0fbfc33f4153b388bb649b7eec4f9b42", size = 8932540 },
 ]
 
 [[package]]

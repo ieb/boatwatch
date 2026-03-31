@@ -295,7 +295,9 @@ fun SettingsScreen(
                                         val addr = result.device.address
                                         if (addr !in found) {
                                             found.add(addr)
-                                            val name = result.device.name ?: result.device.address
+                                            val name = result.scanRecord?.deviceName
+                                                ?: result.device.name
+                                                ?: result.device.address
                                             results.add(ScannedBleDevice(name, addr))
                                             bleDevices = results.toList()
                                         }

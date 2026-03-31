@@ -526,7 +526,7 @@ COMMAND_UUID = "0000aa02-0000-1000-8000-00805f9b34fb"
 BATTERY_NOTIFY_UUID = "0000aa03-0000-1000-8000-00805f9b34fb"
 
 
-async def run_ble_server(sim_state: SimulatorState):
+async def run_ble_server(sim_state: SimulatorState, ble_name: str = "BoatWatch"):
     """Run the BLE GATT server. Must be called from the main thread on macOS
     because CoreBluetooth requires the main thread's CFRunLoop."""
     try:
@@ -535,7 +535,7 @@ async def run_ble_server(sim_state: SimulatorState):
         print(f"[BLE] BLE server not available: {e}")
         return
 
-    server = BleGattServer("BoatWatch")
+    server = BleGattServer(ble_name)
 
     # Build GATT service
     service = server.add_service(SERVICE_UUID)
@@ -647,7 +647,15 @@ def main():
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
     parser.add_argument("--hostname", type=str, default="boatsystems", help="mDNS hostname (default: boatsystems)")
     parser.add_argument("--no-ble", action="store_true", help="Disable BLE GATT server")
+    parser.add_argument("--ble-name", type=str, default=None,
+                        help="BLE device name (default: BoatWatch-<hostname-suffix>)")
     args = parser.parse_args()
+
+    # Generate a unique BLE name from the hostname if not specified
+    if args.ble_name is None:
+        import platform
+        host_short = platform.node().split(".")[0][:8]
+        args.ble_name = f"BoatWatch-{host_short}"
 
     ticker = threading.Thread(target=background_ticker, daemon=True)
     ticker.start()
@@ -666,7 +674,7 @@ def main():
     # Run BLE on main thread (macOS CoreBluetooth requires the main thread's CFRunLoop)
     if not args.no_ble:
         try:
-            asyncio.run(run_ble_server(state))
+            asyncio.run(run_ble_server(state, args.ble_name))
         except KeyboardInterrupt:
             pass
     else:

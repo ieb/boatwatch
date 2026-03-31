@@ -73,7 +73,7 @@ def test_http(base_url: str = "http://localhost:8080"):
 # BLE tests
 # ---------------------------------------------------------------------------
 
-async def test_ble(timeout_s: float = 20.0):
+async def test_ble(timeout_s: float = 20.0, expected_name: str = "BoatWatch"):
     print("=" * 60)
     print("BLE TESTS")
     print("=" * 60)
@@ -93,10 +93,22 @@ async def test_ble(timeout_s: float = 20.0):
     # --- Scan for BoatWatch ---
     print("\n--- BLE Scan ---")
     device = None
+    ad_data = None
     try:
-        devices = await BleakScanner.discover(timeout=5.0, service_uuids=[SERVICE_UUID])
-        if devices:
-            device = devices[0]
+        # Use callback-based scanner to capture advertisement data
+        found_devices = {}
+
+        def scan_callback(dev, advertisement):
+            found_devices[dev.address] = (dev, advertisement)
+
+        scanner = BleakScanner(detection_callback=scan_callback,
+                               service_uuids=[SERVICE_UUID])
+        await scanner.start()
+        await asyncio.sleep(5.0)
+        await scanner.stop()
+
+        if found_devices:
+            device, ad_data = next(iter(found_devices.values()))
             print(f"  Found: {device.name} ({device.address})")
             print(f"  PASS: BLE device advertising service {SERVICE_UUID}")
         else:
@@ -117,6 +129,23 @@ async def test_ble(timeout_s: float = 20.0):
         print(f"  FAIL: Scan error: {e}")
         errors += 1
         return errors
+
+    # --- Check advertised name ---
+    print(f"\n--- BLE Name (expecting prefix '{expected_name}') ---")
+    advertised_name = ad_data.local_name if ad_data else None
+    device_name = device.name if device else None
+    print(f"  Advertised local_name: {advertised_name}")
+    print(f"  Device name: {device_name}")
+    effective_name = advertised_name or device_name
+    if effective_name and effective_name.startswith(expected_name):
+        print(f"  PASS: Name '{effective_name}' starts with '{expected_name}'")
+    elif effective_name:
+        print(f"  FAIL: Name '{effective_name}' does not start with '{expected_name}'")
+        print(f"  NOTE: macOS may override the advertised name with the system Bluetooth name")
+        errors += 1
+    else:
+        print(f"  FAIL: No name found")
+        errors += 1
 
     if not device:
         return errors
@@ -254,6 +283,8 @@ def main():
     parser.add_argument("--ble-only", action="store_true", help="Only run BLE tests")
     parser.add_argument("--http-only", action="store_true", help="Only run HTTP tests")
     parser.add_argument("--url", default="http://localhost:8080", help="HTTP base URL")
+    parser.add_argument("--ble-name", default="BoatWatch",
+                        help="Expected BLE name prefix (default: BoatWatch)")
     args = parser.parse_args()
 
     total_errors = 0
@@ -262,7 +293,7 @@ def main():
         total_errors += test_http(args.url)
 
     if not args.http_only:
-        total_errors += asyncio.run(test_ble())
+        total_errors += asyncio.run(test_ble(expected_name=args.ble_name))
 
     print("\n" + "=" * 60)
     if total_errors == 0:
