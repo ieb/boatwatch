@@ -17,6 +17,8 @@ fun WatchApp(vm: AutopilotViewModel = viewModel()) {
     val serverUrl by vm.serverUrl.collectAsStateWithLifecycle()
     val urlHistory by vm.urlHistory.collectAsStateWithLifecycle()
     val demoMode by vm.demoMode.collectAsStateWithLifecycle()
+    val transportMode by vm.transportMode.collectAsStateWithLifecycle()
+    val bleDeviceName by vm.bleDeviceName.collectAsStateWithLifecycle()
 
     AutopilotWatchTheme {
         SwipeDismissableNavHost(
@@ -40,8 +42,12 @@ fun WatchApp(vm: AutopilotViewModel = viewModel()) {
                     connectionState = connState,
                     urlHistory = urlHistory,
                     demoMode = demoMode,
+                    transportMode = transportMode,
+                    bleDeviceName = bleDeviceName,
                     onUpdateUrl = { vm.updateServerUrl(it) },
                     onSetDemoMode = { vm.setDemoMode(it) },
+                    onSetTransportMode = { vm.setTransportMode(it) },
+                    onSelectBleDevice = { addr, name -> vm.selectBleDevice(addr, name) },
                 )
             }
         }

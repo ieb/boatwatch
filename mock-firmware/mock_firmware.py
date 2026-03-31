@@ -1,13 +1,14 @@
-"""Mock ESP32 firmware HTTP server for BoatWatch WearOS app development.
+"""Mock ESP32 firmware HTTP + BLE server for BoatWatch WearOS app development.
 
 Simulates the /api/store (battery) and /api/seasmart (autopilot) endpoints
-that the watch apps connect to.
+over HTTP, and exposes the same data over BLE GATT characteristics.
 
 Usage:
-    uv run mock_firmware.py [--port 8080] [--host 0.0.0.0]
+    uv run mock_firmware.py [--port 8080] [--host 0.0.0.0] [--no-ble]
 """
 
 import argparse
+import asyncio
 import math
 import socket
 import struct
@@ -112,6 +113,18 @@ class BatteryState:
             f"{len(self.ntc_temps)},{temps}"
         )
 
+    def to_binary(self) -> bytes:
+        """Compact binary encoding: 0xBB header + fixed fields + variable cells + NTCs."""
+        header = struct.pack("<BHhHHBHHBB",
+            0xBB,
+            self.pack_v, self.current, self.remaining_ah, self.full_ah,
+            self.soc, self.cycles, self.errors, self.fet_status,
+            len(self.cell_voltages))
+        cells = struct.pack(f"<{len(self.cell_voltages)}H", *self.cell_voltages)
+        ntc_header = struct.pack("<B", len(self.ntc_temps))
+        ntcs = struct.pack(f"<{len(self.ntc_temps)}H", *self.ntc_temps)
+        return header + cells + ntc_header + ntcs
+
 
 @dataclass
 class AutopilotState:
@@ -144,6 +157,22 @@ class AutopilotState:
     def build_locked_heading_msg(self) -> bytes:
         tgt = encode_angle(self.target_heading % 360.0)
         return bytes([0x3B, 0x9F, self.sid, 0xFF, 0xFF]) + tgt + bytes([0xFF])
+
+    MODE_MAP = {"standby": 0, "compass": 1, "wind_awa": 2, "wind_twa": 3}
+
+    def to_binary(self) -> bytes:
+        """Compact binary encoding: 0xAA header, 10 bytes total."""
+        mode_byte = self.MODE_MAP.get(self.mode, 0)
+        heading_raw = int(self.heading % 360.0 * 100) & 0xFFFF
+        target_heading_raw = int(self.target_heading % 360.0 * 100) & 0xFFFF
+        wind = self.target_wind
+        if wind > 180.0:
+            wind -= 360.0
+        elif wind < -180.0:
+            wind += 360.0
+        target_wind_raw = int(wind * 100)
+        return struct.pack("<BBHHhH",
+            0xAA, mode_byte, heading_raw, target_heading_raw, target_wind_raw, 0)
 
     def build_wind_datum_msg(self) -> bytes:
         wind_deg = self.target_wind
@@ -208,6 +237,11 @@ class SimulatorState:
             h_fields = ",".join(["-1e9"] * N_FIELDS_H)
             p_fields = ",".join(["-1e9"] * N_FIELDS_P)
             return f"H,{h_fields}\nP,{p_fields}\n{self.battery.to_bline()}\n"
+
+    def get_bline(self) -> str:
+        """Get just the B-line for BLE notifications (compact)."""
+        with self.lock:
+            return self.battery.to_bline()
 
     def get_autopilot_messages(self, pgn_filter: set[int] | None) -> list[str]:
         """Generate SeaSmart messages for current autopilot state."""
@@ -280,6 +314,50 @@ class SimulatorState:
                 return True
 
         return False
+
+    def handle_binary_autopilot_command(self, data: bytes) -> bool:
+        """Process a binary autopilot command (0xAA prefix). Returns True if handled."""
+        if len(data) < 2 or data[0] != 0xAA:
+            return False
+        cmd = data[1]
+        with self.lock:
+            if cmd == 0x01:
+                self.autopilot.mode = "standby"
+                print(f"[BIN CMD] STANDBY")
+            elif cmd == 0x02:
+                self.autopilot.mode = "compass"
+                self.autopilot.target_heading = self.autopilot.heading
+                print(f"[BIN CMD] COMPASS (heading {self.autopilot.target_heading:.0f}°)")
+            elif cmd == 0x03:
+                self.autopilot.mode = "wind_awa"
+                print(f"[BIN CMD] WIND AWA (target {self.autopilot.target_wind:.0f}°)")
+            elif cmd == 0x04:
+                self.autopilot.mode = "wind_twa"
+                print(f"[BIN CMD] WIND TWA (target {self.autopilot.target_wind:.0f}°)")
+            elif cmd == 0x10 and len(data) >= 4:
+                raw = struct.unpack_from("<H", data, 2)[0]
+                self.autopilot.target_heading = raw * 0.01
+                print(f"[BIN CMD] SET_HEADING {self.autopilot.target_heading:.1f}°")
+            elif cmd == 0x11 and len(data) >= 4:
+                raw = struct.unpack_from("<h", data, 2)[0]
+                self.autopilot.target_wind = raw * 0.01
+                print(f"[BIN CMD] SET_WIND {self.autopilot.target_wind:.1f}°")
+            elif cmd == 0x20 and len(data) >= 4:
+                raw = struct.unpack_from("<h", data, 2)[0]
+                delta = raw * 0.01
+                self.autopilot.target_heading = (self.autopilot.target_heading + delta) % 360.0
+                print(f"[BIN CMD] ADJUST_HEADING {delta:+.1f}° -> {self.autopilot.target_heading:.1f}°")
+            elif cmd == 0x21 and len(data) >= 4:
+                raw = struct.unpack_from("<h", data, 2)[0]
+                delta = raw * 0.01
+                wind = self.autopilot.target_wind + delta
+                while wind > 180.0: wind -= 360.0
+                while wind < -180.0: wind += 360.0
+                self.autopilot.target_wind = wind
+                print(f"[BIN CMD] ADJUST_WIND {delta:+.1f}° -> {self.autopilot.target_wind:.1f}°")
+            else:
+                return False
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -439,6 +517,105 @@ def background_ticker():
 
 
 # ---------------------------------------------------------------------------
+# BLE GATT Server
+# ---------------------------------------------------------------------------
+
+SERVICE_UUID = "0000aa00-0000-1000-8000-00805f9b34fb"
+SEASMART_NOTIFY_UUID = "0000aa01-0000-1000-8000-00805f9b34fb"
+SEASMART_COMMAND_UUID = "0000aa02-0000-1000-8000-00805f9b34fb"
+STORE_NOTIFY_UUID = "0000aa03-0000-1000-8000-00805f9b34fb"
+
+
+async def run_ble_server(sim_state: SimulatorState):
+    """Run the BLE GATT server. Must be called from the main thread on macOS
+    because CoreBluetooth requires the main thread's CFRunLoop."""
+    try:
+        from bless import BlessServer, BlessGATTCharacteristic, GATTCharacteristicProperties, GATTAttributePermissions
+    except ImportError:
+        print("[BLE] bless library not available — BLE server disabled")
+        return
+
+    server = BlessServer(name="BoatWatch")
+
+    def on_write(characteristic: BlessGATTCharacteristic, value: bytes, **kwargs):
+        """Handle binary command writes."""
+        if characteristic.uuid == SEASMART_COMMAND_UUID:
+            sim_state.handle_binary_autopilot_command(value)
+
+    server.write_request_func = on_write
+
+    await server.add_new_service(SERVICE_UUID)
+
+    # SeaSmart notify characteristic (autopilot data)
+    await server.add_new_characteristic(
+        SERVICE_UUID,
+        SEASMART_NOTIFY_UUID,
+        GATTCharacteristicProperties.read | GATTCharacteristicProperties.notify,
+        None,
+        GATTAttributePermissions.readable,
+    )
+
+    # SeaSmart command characteristic (autopilot commands)
+    await server.add_new_characteristic(
+        SERVICE_UUID,
+        SEASMART_COMMAND_UUID,
+        GATTCharacteristicProperties.write | GATTCharacteristicProperties.write_without_response,
+        None,
+        GATTAttributePermissions.writeable,
+    )
+
+    # Store notify characteristic (battery data)
+    await server.add_new_characteristic(
+        SERVICE_UUID,
+        STORE_NOTIFY_UUID,
+        GATTCharacteristicProperties.read | GATTCharacteristicProperties.notify,
+        None,
+        GATTAttributePermissions.readable,
+    )
+
+    await server.start()
+    print(f"[BLE] GATT server started — advertising as 'BoatWatch'")
+    print(f"[BLE]   Service:          {SERVICE_UUID}")
+    print(f"[BLE]   SeaSmart notify:  {SEASMART_NOTIFY_UUID}")
+    print(f"[BLE]   SeaSmart command: {SEASMART_COMMAND_UUID}")
+    print(f"[BLE]   Store notify:     {STORE_NOTIFY_UUID}")
+    print()
+
+    # Notification loop
+    tick = 0
+    print("[BLE] Entering notification loop")
+    try:
+        while True:
+            # --- Autopilot state notifications (~5 Hz, binary) ---
+            seasmart_char = server.get_characteristic(SEASMART_NOTIFY_UUID)
+            if seasmart_char is not None:
+                with sim_state.lock:
+                    ap_binary = sim_state.autopilot.to_binary()
+                seasmart_char.value = bytearray(ap_binary)
+                ok_ap = server.update_value(SERVICE_UUID, SEASMART_NOTIFY_UUID)
+                if tick % 50 == 0:
+                    print(f"[BLE] AP notify: {len(ap_binary)}B ok={ok_ap}")
+
+            # --- Store notifications (battery, every 5s, binary format) ---
+            if tick % 25 == 0:
+                with sim_state.lock:
+                    binary_data = sim_state.battery.to_binary()
+                store_char = server.get_characteristic(STORE_NOTIFY_UUID)
+                if store_char is not None:
+                    store_char.value = bytearray(binary_data)
+                    ok_st = server.update_value(SERVICE_UUID, STORE_NOTIFY_UUID)
+                    print(f"[BLE] Store notify: {len(binary_data)}B ok={ok_st}")
+
+            tick += 1
+            await asyncio.sleep(0.2)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await server.stop()
+        print("[BLE] GATT server stopped")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -473,11 +650,23 @@ def register_mdns(port: int, hostname: str = "boatsystems") -> tuple[Zeroconf, S
     return zc, service_info
 
 
+def run_http_server(host: str, port: int):
+    """Run the HTTP server in a background thread."""
+    server = ThreadingHTTPServer((host, port), FirmwareHandler)
+    print(f"Mock firmware running on http://{host}:{port}")
+    print(f"  Battery:   GET  /api/store")
+    print(f"  Autopilot: GET  /api/seasmart?pgns=65379,65359,65360,65345")
+    print(f"  Commands:  POST /api/seasmart")
+    print()
+    server.serve_forever()
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Mock firmware HTTP server for BoatWatch")
+    parser = argparse.ArgumentParser(description="Mock firmware HTTP + BLE server for BoatWatch")
     parser.add_argument("--port", type=int, default=8080, help="Listen port (default: 8080)")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
     parser.add_argument("--hostname", type=str, default="boatsystems", help="mDNS hostname (default: boatsystems)")
+    parser.add_argument("--no-ble", action="store_true", help="Disable BLE GATT server")
     args = parser.parse_args()
 
     ticker = threading.Thread(target=background_ticker, daemon=True)
@@ -490,20 +679,29 @@ def main():
     print(f"mDNS: service {args.hostname}._http._tcp.local. on port {args.port}")
     print()
 
-    server = ThreadingHTTPServer((args.host, args.port), FirmwareHandler)
-    print(f"Mock firmware running on http://{args.host}:{args.port}")
-    print(f"  Battery:   GET  /api/store")
-    print(f"  Autopilot: GET  /api/seasmart?pgns=65379,65359,65360,65345")
-    print(f"  Commands:  POST /api/seasmart")
-    print()
+    # Start HTTP server in background thread
+    http_thread = threading.Thread(target=run_http_server, args=(args.host, args.port), daemon=True)
+    http_thread.start()
 
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nShutting down.")
-        zc.unregister_service(service_info)
-        zc.close()
-        server.shutdown()
+    # Run BLE on main thread (macOS CoreBluetooth requires the main thread's CFRunLoop)
+    if not args.no_ble:
+        try:
+            asyncio.run(run_ble_server(state))
+        except KeyboardInterrupt:
+            pass
+    else:
+        print("[BLE] Disabled via --no-ble flag")
+        print()
+        try:
+            # Block main thread so HTTP server keeps running
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            pass
+
+    print("\nShutting down.")
+    zc.unregister_service(service_info)
+    zc.close()
 
 
 if __name__ == "__main__":

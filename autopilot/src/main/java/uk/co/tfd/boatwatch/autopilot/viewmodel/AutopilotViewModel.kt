@@ -18,6 +18,9 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
         private const val KEY_URL = "server_url"
         private const val KEY_URL_HISTORY = "url_history"
         private const val KEY_DEMO_MODE = "demo_mode"
+        private const val KEY_TRANSPORT_MODE = "transport_mode"
+        private const val KEY_BLE_DEVICE_ADDRESS = "ble_device_address"
+        private const val KEY_BLE_DEVICE_NAME = "ble_device_name"
         private const val DEFAULT_URL = "http://boatsystems.local"
         private const val SOURCE_ADDRESS = 0x42
         private const val MAX_HISTORY = 5
@@ -27,6 +30,18 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _demoMode = MutableStateFlow(prefs.getBoolean(KEY_DEMO_MODE, false))
     val demoMode: StateFlow<Boolean> = _demoMode
+
+    private val _transportMode = MutableStateFlow(
+        try { TransportMode.valueOf(prefs.getString(KEY_TRANSPORT_MODE, "HTTP") ?: "HTTP") }
+        catch (_: Exception) { TransportMode.HTTP }
+    )
+    val transportMode: StateFlow<TransportMode> = _transportMode
+
+    private val _bleDeviceAddress = MutableStateFlow(prefs.getString(KEY_BLE_DEVICE_ADDRESS, null))
+    val bleDeviceAddress: StateFlow<String?> = _bleDeviceAddress
+
+    private val _bleDeviceName = MutableStateFlow(prefs.getString(KEY_BLE_DEVICE_NAME, null))
+    val bleDeviceName: StateFlow<String?> = _bleDeviceName
 
     private var client: AutopilotHttpClient = createClient()
     private var collectJob: Job? = null
@@ -54,7 +69,12 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun createClient(): AutopilotHttpClient {
-        return if (_demoMode.value) FakeAutopilotClient() else HttpAutopilotClient()
+        return when {
+            _demoMode.value -> FakeAutopilotClient()
+            _transportMode.value == TransportMode.BLE && _bleDeviceAddress.value != null ->
+                BleAutopilotClient(getApplication(), _bleDeviceAddress.value!!)
+            else -> HttpAutopilotClient()
+        }
     }
 
     private fun startClient() {
@@ -68,7 +88,11 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
             }
             launch {
                 client.state.collect { raw ->
-                    _displayState.value = if (raw.pilotMode == PilotMode.WIND_AWA) {
+                    _displayState.value = if (_transportMode.value == TransportMode.BLE) {
+                        // Binary protocol sends exact mode — no override needed
+                        raw
+                    } else if (raw.pilotMode == PilotMode.WIND_AWA) {
+                        // SeaSmart can't distinguish AWA/TWA — apply local override
                         raw.copy(pilotMode = requestedWindMode)
                     } else {
                         if (raw.pilotMode == PilotMode.STANDBY || raw.pilotMode == PilotMode.COMPASS) {
@@ -93,6 +117,38 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
         _displayState.value = AutopilotState()
         requestedWindMode = PilotMode.WIND_AWA
         startClient()
+    }
+
+    fun setTransportMode(mode: TransportMode) {
+        if (mode == _transportMode.value) return
+        _transportMode.value = mode
+        prefs.edit().putString(KEY_TRANSPORT_MODE, mode.name).apply()
+
+        collectJob?.cancel()
+        client.destroy()
+        client = createClient()
+        _displayState.value = AutopilotState()
+        requestedWindMode = PilotMode.WIND_AWA
+        startClient()
+    }
+
+    fun selectBleDevice(address: String, name: String) {
+        _bleDeviceAddress.value = address
+        _bleDeviceName.value = name
+        prefs.edit()
+            .putString(KEY_BLE_DEVICE_ADDRESS, address)
+            .putString(KEY_BLE_DEVICE_NAME, name)
+            .apply()
+
+        // If already in BLE mode, reconnect to the new device
+        if (_transportMode.value == TransportMode.BLE) {
+            collectJob?.cancel()
+            client.destroy()
+            client = createClient()
+            _displayState.value = AutopilotState()
+            requestedWindMode = PilotMode.WIND_AWA
+            startClient()
+        }
     }
 
     fun updateServerUrl(url: String) {
@@ -123,25 +179,40 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun standby() {
         requestedWindMode = PilotMode.WIND_AWA
-        send(RaymarineN2K.buildStandbyCommand())
+        if (_transportMode.value == TransportMode.BLE) {
+            sendBinary(BinaryAutopilotProtocol.cmdStandby())
+        } else {
+            sendN2K(RaymarineN2K.buildStandbyCommand())
+        }
     }
 
     fun cycleMode() {
         val current = _displayState.value.pilotMode
-        when (current) {
-            PilotMode.STANDBY -> {
-                send(RaymarineN2K.buildAutoCompassCommand())
+        if (_transportMode.value == TransportMode.BLE) {
+            when (current) {
+                PilotMode.STANDBY -> sendBinary(BinaryAutopilotProtocol.cmdCompass())
+                PilotMode.COMPASS -> {
+                    requestedWindMode = PilotMode.WIND_AWA
+                    sendBinary(BinaryAutopilotProtocol.cmdWindAwa())
+                }
+                PilotMode.WIND_AWA -> {
+                    requestedWindMode = PilotMode.WIND_TWA
+                    sendBinary(BinaryAutopilotProtocol.cmdWindTwa())
+                }
+                PilotMode.WIND_TWA -> sendBinary(BinaryAutopilotProtocol.cmdCompass())
             }
-            PilotMode.COMPASS -> {
-                requestedWindMode = PilotMode.WIND_AWA
-                send(RaymarineN2K.buildWindAwaCommand())
-            }
-            PilotMode.WIND_AWA -> {
-                requestedWindMode = PilotMode.WIND_TWA
-                send(RaymarineN2K.buildWindTwaCommand())
-            }
-            PilotMode.WIND_TWA -> {
-                send(RaymarineN2K.buildAutoCompassCommand())
+        } else {
+            when (current) {
+                PilotMode.STANDBY -> sendN2K(RaymarineN2K.buildAutoCompassCommand())
+                PilotMode.COMPASS -> {
+                    requestedWindMode = PilotMode.WIND_AWA
+                    sendN2K(RaymarineN2K.buildWindAwaCommand())
+                }
+                PilotMode.WIND_AWA -> {
+                    requestedWindMode = PilotMode.WIND_TWA
+                    sendN2K(RaymarineN2K.buildWindTwaCommand())
+                }
+                PilotMode.WIND_TWA -> sendN2K(RaymarineN2K.buildAutoCompassCommand())
             }
         }
     }
@@ -150,29 +221,43 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
         val current = state.value
         if (current.pilotMode == PilotMode.STANDBY) return
 
-        val cmd = when (current.pilotMode) {
-            PilotMode.COMPASS -> {
-                var newHeading = current.targetHeading + deltaDegrees
-                while (newHeading < 0) newHeading += 360.0
-                while (newHeading >= 360.0) newHeading -= 360.0
-                RaymarineN2K.buildHeadingSet(newHeading)
+        if (_transportMode.value == TransportMode.BLE) {
+            when (current.pilotMode) {
+                PilotMode.COMPASS -> sendBinary(BinaryAutopilotProtocol.cmdAdjustHeading(deltaDegrees))
+                PilotMode.WIND_AWA, PilotMode.WIND_TWA ->
+                    sendBinary(BinaryAutopilotProtocol.cmdAdjustWind(-deltaDegrees))
+                else -> return
             }
-            PilotMode.WIND_AWA, PilotMode.WIND_TWA -> {
-                // +1 = turn starboard = wind moves to port (negative), so negate
-                var newWind = current.targetWindAngle - deltaDegrees
-                while (newWind > 180.0) newWind -= 360.0
-                while (newWind < -180.0) newWind += 360.0
-                RaymarineN2K.buildWindDatumSet(newWind)
+        } else {
+            val cmd = when (current.pilotMode) {
+                PilotMode.COMPASS -> {
+                    var newHeading = current.targetHeading + deltaDegrees
+                    while (newHeading < 0) newHeading += 360.0
+                    while (newHeading >= 360.0) newHeading -= 360.0
+                    RaymarineN2K.buildHeadingSet(newHeading)
+                }
+                PilotMode.WIND_AWA, PilotMode.WIND_TWA -> {
+                    var newWind = current.targetWindAngle - deltaDegrees
+                    while (newWind > 180.0) newWind -= 360.0
+                    while (newWind < -180.0) newWind += 360.0
+                    RaymarineN2K.buildWindDatumSet(newWind)
+                }
+                else -> return
             }
-            else -> return
+            sendN2K(cmd)
         }
-        send(cmd)
     }
 
-    private fun send(commandData: ByteArray) {
+    private fun sendN2K(commandData: ByteArray) {
         val sentence = SeaSmartCodec.encode(RaymarineN2K.PGN_COMMAND, SOURCE_ADDRESS, commandData)
         viewModelScope.launch {
             client.sendCommand(sentence)
+        }
+    }
+
+    private fun sendBinary(data: ByteArray) {
+        viewModelScope.launch {
+            client.sendBinaryCommand(data)
         }
     }
 

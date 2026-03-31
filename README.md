@@ -1,7 +1,7 @@
 # BoatWatch
 
 
-WearOS apps for a Galaxy Watch 6 Classic (WearOS 5.0) that communicate over WiFi with custom ESP32 firmware ([N2KNMEA0183Wifi](https://github.com/ieb/N2KNMEA0183Wifi)).
+WearOS apps for a Galaxy Watch 6 Classic (WearOS 5.0) that communicate over WiFi or BLE with custom ESP32 firmware ([N2KNMEA0183Wifi](https://github.com/ieb/N2KNMEA0183Wifi)).
 
 ## Why ?
 
@@ -106,7 +106,8 @@ sdk.dir=/path/to/your/android/sdk
 BoatWatch/
   battery/          WearOS app — Battery Monitor
   autopilot/        WearOS app — Autopilot Control
-  mock-firmware/    Python HTTP server simulating ESP32 firmware
+  mock-firmware/    Python HTTP + BLE server simulating ESP32 firmware
+  docs/             Protocol documentation and screenshots
   spec.md           Requirements specification
 ```
 
@@ -152,11 +153,23 @@ uv run mock_firmware.py --port 9090 --host 127.0.0.1
 
 ### What it simulates
 
+**HTTP endpoints:**
+
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/api/store` | GET | Battery data (B-line CSV), polled every 5s by battery app |
 | `/api/seasmart?pgns=...` | GET | Streaming autopilot status (SeaSmart/PCDIN sentences) |
 | `/api/seasmart` | POST | Receive autopilot commands (mode change, heading adjust) |
+
+**BLE GATT service** (service UUID `0000AA00-...`):
+
+| Characteristic | Direction | Purpose |
+|---------------|-----------|---------|
+| `0000AA01` | NOTIFY | Autopilot state (binary, 10 bytes, ~5 Hz) |
+| `0000AA02` | WRITE | Autopilot commands (binary, 2–4 bytes) |
+| `0000AA03` | NOTIFY | Battery state (binary, ~31 bytes, every 5s) |
+
+Use `--no-ble` to disable the BLE server. See [BLE Transport Protocol](./docs/ble-transport.md) for the binary format specification.
 
 The mock server simulates:
 - A 4-cell LiFePO4 battery slowly discharging with cell voltage jitter
@@ -201,14 +214,15 @@ adb install autopilot/build/outputs/apk/debug/autopilot-debug.apk
 
 The apps appear as "Battery" and "Autopilot" in the watch launcher.
 
-### Debug vs Release data sources
+### Data source modes
 
-| Build | Battery app | Autopilot app |
-|-------|-------------|---------------|
-| Debug | `FakeBatteryDataSource` (no network) | `FakeAutopilotClient` (no network) |
-| Release | `HttpBatteryDataSource` (polls firmware) | `HttpAutopilotClient` (streams from firmware) |
+Both apps support three data source modes, selectable at runtime from the settings screen (long-press the connection dot):
 
-To test with the mock server instead of fake data, change `FAKE_DATA`/`FAKE_HTTP` to `false` in the debug build type in the module's `build.gradle.kts`, then point the app's settings screen to `http://<host-ip>:8080`.
+| Mode | Battery app | Autopilot app |
+|------|-------------|---------------|
+| **Demo** | `FakeBatteryDataSource` (simulated) | `FakeAutopilotClient` (simulated) |
+| **WiFi** | `HttpBatteryDataSource` (polls firmware) | `HttpAutopilotClient` (streams from firmware) |
+| **Bluetooth** | `BleBatteryDataSource` (BLE binary) | `BleAutopilotClient` (BLE binary) |
 
 ## Testing on a Real Watch
 
@@ -280,9 +294,11 @@ MainActivity
 
 BatteryViewModel
   └─ BatteryDataSource (interface)
-       ├─ FakeBatteryDataSource  (debug: simulated data)
-       └─ HttpBatteryDataSource  (release: polls GET /api/store)
-              └─ StoreApiParser   (parses CSV B-line)
+       ├─ FakeBatteryDataSource  (demo: simulated data)
+       ├─ HttpBatteryDataSource  (WiFi: polls GET /api/store)
+       │      └─ StoreApiParser   (parses CSV B-line)
+       └─ BleBatteryDataSource   (BLE: binary 0xBB notifications)
+              └─ BinaryBatteryParser
 ```
 
 ### Autopilot Control
@@ -295,20 +311,27 @@ MainActivity
 
 AutopilotViewModel
   └─ AutopilotHttpClient (interface)
-       ├─ FakeAutopilotClient  (debug: simulated autopilot)
-       └─ HttpAutopilotClient  (release: streaming GET + POST)
+       ├─ FakeAutopilotClient  (demo: simulated autopilot)
+       ├─ HttpAutopilotClient  (WiFi: streaming GET + POST)
+       └─ BleAutopilotClient   (BLE: binary 0xAA state + commands)
+              └─ BinaryAutopilotProtocol
 
-Protocol layer:
+Protocol layer (HTTP/SeaSmart):
   SeaSmartCodec    — encode/decode $PCDIN sentences
   RaymarineN2K     — build PGN 126208 command byte sequences
   RaymarineState   — parse PGN 65379/65359/65360/65345 status
 ```
 
-### Communication Protocol
+### Communication Protocols
 
-The apps talk to the firmware over HTTP using two formats:
-
+**WiFi/HTTP:**
 - **Battery:** CSV over `GET /api/store` (polled every 5s)
 - **Autopilot:** SeaSmart ($PCDIN) sentences over `GET /api/seasmart` (streaming) and `POST /api/seasmart` (commands)
+- Autopilot commands use NMEA 2000 PGN 126208 (Command Group Function) targeting Raymarine proprietary PGNs. Heading and wind angles are encoded as radians × 10000, uint16 little-endian.
 
-Autopilot commands use NMEA 2000 PGN 126208 (Command Group Function) targeting Raymarine proprietary PGNs. Heading and wind angles are encoded as radians × 10000, uint16 little-endian.
+**BLE (binary):**
+- **Battery:** 31-byte binary notification (0xBB magic, little-endian integers)
+- **Autopilot state:** 10-byte binary notification (0xAA magic, mode + headings)
+- **Autopilot commands:** 2–4 byte binary writes (0xAA magic + command ID + optional payload)
+
+The BLE binary protocol is ~57–93% smaller than the text-based HTTP protocol. Full specification in [docs/ble-transport.md](./docs/ble-transport.md).

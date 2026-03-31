@@ -1,6 +1,11 @@
 package uk.co.tfd.boatwatch.battery.presentation
 
+import android.Manifest
 import android.app.RemoteInput
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.le.*
+import android.os.Build
+import android.os.ParcelUuid
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -16,10 +21,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.*
 import androidx.wear.input.RemoteInputIntentHelper
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import uk.co.tfd.boatwatch.battery.data.BleBatteryDataSource
 import uk.co.tfd.boatwatch.battery.data.ConnectionStatus
 import uk.co.tfd.boatwatch.battery.data.ServerDiscovery
 import uk.co.tfd.boatwatch.battery.data.DiscoveredServer
+import uk.co.tfd.boatwatch.battery.data.TransportMode
+
+data class ScannedBleDevice(val name: String, val address: String)
 
 @Composable
 fun SettingsScreen(
@@ -27,13 +37,29 @@ fun SettingsScreen(
     connectionStatus: ConnectionStatus,
     urlHistory: List<String>,
     demoMode: Boolean,
+    transportMode: TransportMode,
+    bleDeviceName: String?,
     onUpdateUrl: (String) -> Unit,
     onSetDemoMode: (Boolean) -> Unit,
+    onSetTransportMode: (TransportMode) -> Unit,
+    onSelectBleDevice: (address: String, name: String) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var discovering by remember { mutableStateOf(false) }
     var discovered by remember { mutableStateOf<List<DiscoveredServer>>(emptyList()) }
+
+    // BLE scan state
+    var bleScanning by remember { mutableStateOf(false) }
+    var bleDevices by remember { mutableStateOf<List<ScannedBleDevice>>(emptyList()) }
+
+    // BLE permission handling
+    var blePermGranted by remember { mutableStateOf(false) }
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        blePermGranted = results.values.all { it }
+    }
 
     // RemoteInput launcher
     val inputLauncher = rememberLauncherForActivityResult(
@@ -97,7 +123,32 @@ fun SettingsScreen(
         }
 
         if (!demoMode) {
-        // Current URL and status
+        // Transport selector
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Chip(
+                    onClick = { onSetTransportMode(TransportMode.HTTP) },
+                    label = { Text("WiFi") },
+                    colors = if (transportMode == TransportMode.HTTP)
+                        ChipDefaults.primaryChipColors()
+                    else ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.weight(1f),
+                )
+                Chip(
+                    onClick = { onSetTransportMode(TransportMode.BLE) },
+                    label = { Text("Bluetooth") },
+                    colors = if (transportMode == TransportMode.BLE)
+                        ChipDefaults.primaryChipColors()
+                    else ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        // Connection status
         item {
             val statusColor = when (connectionStatus) {
                 ConnectionStatus.CONNECTED -> Color(0xFF4CAF50)
@@ -111,9 +162,14 @@ fun SettingsScreen(
                 ConnectionStatus.ERROR -> "Error"
                 ConnectionStatus.DISCONNECTED -> "Disconnected"
             }
+            val targetText = if (transportMode == TransportMode.BLE) {
+                bleDeviceName ?: "No device selected"
+            } else {
+                serverUrl
+            }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = serverUrl,
+                    text = targetText,
                     fontSize = 11.sp,
                     color = MaterialTheme.colors.onSurface,
                     textAlign = TextAlign.Center,
@@ -132,83 +188,167 @@ fun SettingsScreen(
 
         item { Spacer(modifier = Modifier.height(4.dp)) }
 
-        // Find Server button
-        item {
-            Chip(
-                onClick = {
-                    if (!discovering) {
-                        discovering = true
-                        discovered = emptyList()
-                        scope.launch {
-                            discovered = ServerDiscovery.discover(context)
-                            discovering = false
-                        }
-                    }
-                },
-                label = {
-                    Text(
-                        text = if (discovering) "Searching..." else "Find Server",
-                        maxLines = 1,
-                    )
-                },
-                secondaryLabel = if (!discovering && discovered.isNotEmpty()) {
-                    { Text("Found ${discovered.size}") }
-                } else null,
-                colors = ChipDefaults.secondaryChipColors(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        if (transportMode == TransportMode.HTTP) {
+            // === WiFi settings ===
 
-        // Discovery results
-        if (discovered.isNotEmpty()) {
-            items(discovered.size) { index ->
-                val server = discovered[index]
+            // Find Server button
+            item {
                 Chip(
-                    onClick = { onUpdateUrl(server.url) },
-                    label = { Text(server.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    secondaryLabel = { Text(server.url, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    colors = if (server.url == serverUrl) ChipDefaults.primaryChipColors()
+                    onClick = {
+                        if (!discovering) {
+                            discovering = true
+                            discovered = emptyList()
+                            scope.launch {
+                                discovered = ServerDiscovery.discover(context)
+                                discovering = false
+                            }
+                        }
+                    },
+                    label = {
+                        Text(
+                            text = if (discovering) "Searching..." else "Find Server",
+                            maxLines = 1,
+                        )
+                    },
+                    secondaryLabel = if (!discovering && discovered.isNotEmpty()) {
+                        { Text("Found ${discovered.size}") }
+                    } else null,
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            // Discovery results
+            if (discovered.isNotEmpty()) {
+                items(discovered.size) { index ->
+                    val server = discovered[index]
+                    Chip(
+                        onClick = { onUpdateUrl(server.url) },
+                        label = { Text(server.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        secondaryLabel = { Text(server.url, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        colors = if (server.url == serverUrl) ChipDefaults.primaryChipColors()
+                        else ChipDefaults.secondaryChipColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(4.dp)) }
+
+            // Preset URLs
+            items(presets.size) { index ->
+                val url = presets[index]
+                Chip(
+                    onClick = { onUpdateUrl(url) },
+                    label = {
+                        Text(
+                            text = url.removePrefix("http://"),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    colors = if (url == serverUrl) ChipDefaults.primaryChipColors()
                     else ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-        }
 
-        item { Spacer(modifier = Modifier.height(4.dp)) }
+            // Enter URL manually
+            item {
+                Chip(
+                    onClick = {
+                        val remoteInput = RemoteInput.Builder("url")
+                            .setLabel("Server URL")
+                            .build()
+                        val intent = RemoteInputIntentHelper.createActionRemoteInputIntent()
+                        RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(remoteInput))
+                        inputLauncher.launch(intent)
+                    },
+                    label = { Text("Enter URL...") },
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        } else {
+            // === Bluetooth settings ===
 
-        // Preset URLs
-        items(presets.size) { index ->
-            val url = presets[index]
-            Chip(
-                onClick = { onUpdateUrl(url) },
-                label = {
-                    Text(
-                        text = url.removePrefix("http://"),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+            // Scan for devices
+            item {
+                Chip(
+                    onClick = {
+                        if (bleScanning) return@Chip
+                        // Request permissions first
+                        val perms = if (Build.VERSION.SDK_INT >= 31) {
+                            arrayOf(
+                                Manifest.permission.BLUETOOTH_SCAN,
+                                Manifest.permission.BLUETOOTH_CONNECT,
+                            )
+                        } else {
+                            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                        }
+                        permLauncher.launch(perms)
+
+                        bleScanning = true
+                        bleDevices = emptyList()
+                        scope.launch {
+                            val results = mutableListOf<ScannedBleDevice>()
+                            val adapter = BluetoothAdapter.getDefaultAdapter()
+                            val scanner = adapter?.bluetoothLeScanner
+                            if (scanner != null) {
+                                val found = mutableSetOf<String>()
+                                val callback = object : ScanCallback() {
+                                    override fun onScanResult(callbackType: Int, result: ScanResult) {
+                                        val addr = result.device.address
+                                        if (addr !in found) {
+                                            found.add(addr)
+                                            val name = result.device.name ?: result.device.address
+                                            results.add(ScannedBleDevice(name, addr))
+                                            bleDevices = results.toList()
+                                        }
+                                    }
+                                }
+                                val filter = ScanFilter.Builder()
+                                    .setServiceUuid(ParcelUuid(BleBatteryDataSource.SERVICE_UUID))
+                                    .build()
+                                val settings = ScanSettings.Builder()
+                                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                                    .build()
+                                try {
+                                    scanner.startScan(listOf(filter), settings, callback)
+                                    delay(10000)
+                                    scanner.stopScan(callback)
+                                } catch (_: SecurityException) { }
+                            }
+                            bleScanning = false
+                        }
+                    },
+                    label = {
+                        Text(
+                            text = if (bleScanning) "Scanning..." else "Scan for Devices",
+                            maxLines = 1,
+                        )
+                    },
+                    secondaryLabel = if (!bleScanning && bleDevices.isNotEmpty()) {
+                        { Text("Found ${bleDevices.size}") }
+                    } else null,
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            // BLE scan results
+            if (bleDevices.isNotEmpty()) {
+                items(bleDevices.size) { index ->
+                    val device = bleDevices[index]
+                    Chip(
+                        onClick = { onSelectBleDevice(device.address, device.name) },
+                        label = { Text(device.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        secondaryLabel = { Text(device.address, fontSize = 10.sp) },
+                        colors = ChipDefaults.secondaryChipColors(),
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                },
-                colors = if (url == serverUrl) ChipDefaults.primaryChipColors()
-                else ChipDefaults.secondaryChipColors(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        // Enter URL manually
-        item {
-            Chip(
-                onClick = {
-                    val remoteInput = RemoteInput.Builder("url")
-                        .setLabel("Server URL")
-                        .build()
-                    val intent = RemoteInputIntentHelper.createActionRemoteInputIntent()
-                    RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(remoteInput))
-                    inputLauncher.launch(intent)
-                },
-                label = { Text("Enter URL...") },
-                colors = ChipDefaults.secondaryChipColors(),
-                modifier = Modifier.fillMaxWidth(),
-            )
+                }
+            }
         }
         } // end if (!demoMode)
     }

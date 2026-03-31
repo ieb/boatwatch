@@ -14,6 +14,9 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
         private const val KEY_URL = "server_url"
         private const val KEY_URL_HISTORY = "url_history"
         private const val KEY_DEMO_MODE = "demo_mode"
+        private const val KEY_TRANSPORT_MODE = "transport_mode"
+        private const val KEY_BLE_DEVICE_ADDRESS = "ble_device_address"
+        private const val KEY_BLE_DEVICE_NAME = "ble_device_name"
         private const val DEFAULT_URL = "http://boatsystems.local"
         private const val MAX_HISTORY = 5
     }
@@ -22,6 +25,18 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
 
     private val _demoMode = MutableStateFlow(prefs.getBoolean(KEY_DEMO_MODE, false))
     val demoMode: StateFlow<Boolean> = _demoMode
+
+    private val _transportMode = MutableStateFlow(
+        try { TransportMode.valueOf(prefs.getString(KEY_TRANSPORT_MODE, "HTTP") ?: "HTTP") }
+        catch (_: Exception) { TransportMode.HTTP }
+    )
+    val transportMode: StateFlow<TransportMode> = _transportMode
+
+    private val _bleDeviceAddress = MutableStateFlow(prefs.getString(KEY_BLE_DEVICE_ADDRESS, null))
+    val bleDeviceAddress: StateFlow<String?> = _bleDeviceAddress
+
+    private val _bleDeviceName = MutableStateFlow(prefs.getString(KEY_BLE_DEVICE_NAME, null))
+    val bleDeviceName: StateFlow<String?> = _bleDeviceName
 
     private var dataSource: BatteryDataSource = createDataSource()
 
@@ -43,7 +58,12 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun createDataSource(): BatteryDataSource {
-        return if (_demoMode.value) FakeBatteryDataSource() else HttpBatteryDataSource()
+        return when {
+            _demoMode.value -> FakeBatteryDataSource()
+            _transportMode.value == TransportMode.BLE && _bleDeviceAddress.value != null ->
+                BleBatteryDataSource(getApplication(), _bleDeviceAddress.value!!)
+            else -> HttpBatteryDataSource()
+        }
     }
 
     private fun startDataSource() {
@@ -79,6 +99,35 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
         _state.value = BatteryState()
         _connectionStatus.value = ConnectionStatus.DISCONNECTED
         startDataSource()
+    }
+
+    fun setTransportMode(mode: TransportMode) {
+        if (mode == _transportMode.value) return
+        _transportMode.value = mode
+        prefs.edit().putString(KEY_TRANSPORT_MODE, mode.name).apply()
+
+        dataSource.destroy()
+        dataSource = createDataSource()
+        _state.value = BatteryState()
+        _connectionStatus.value = ConnectionStatus.DISCONNECTED
+        startDataSource()
+    }
+
+    fun selectBleDevice(address: String, name: String) {
+        _bleDeviceAddress.value = address
+        _bleDeviceName.value = name
+        prefs.edit()
+            .putString(KEY_BLE_DEVICE_ADDRESS, address)
+            .putString(KEY_BLE_DEVICE_NAME, name)
+            .apply()
+
+        if (_transportMode.value == TransportMode.BLE) {
+            dataSource.destroy()
+            dataSource = createDataSource()
+            _state.value = BatteryState()
+            _connectionStatus.value = ConnectionStatus.DISCONNECTED
+            startDataSource()
+        }
     }
 
     fun updateServerUrl(url: String) {
