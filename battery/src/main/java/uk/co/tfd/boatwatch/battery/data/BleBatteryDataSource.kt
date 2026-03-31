@@ -18,7 +18,7 @@ class BleBatteryDataSource(
         private const val TAG = "BleBattery"
         private const val RECONNECT_DELAY_MS = 3000L
         val SERVICE_UUID: UUID = UUID.fromString("0000AA00-0000-1000-8000-00805f9b34fb")
-        val STORE_NOTIFY_UUID: UUID = UUID.fromString("0000AA03-0000-1000-8000-00805f9b34fb")
+        val DATA_NOTIFY_UUID: UUID = UUID.fromString("0000AA01-0000-1000-8000-00805f9b34fb")
         val CCC_DESCRIPTOR_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }
 
@@ -65,8 +65,11 @@ class BleBatteryDataSource(
                 return
             }
 
-            // Enable notifications on Store characteristic
-            val notifyChar = service.getCharacteristic(STORE_NOTIFY_UUID)
+            // Enable notifications on the shared data characteristic (AA01)
+            // Battery data (0xBB) is multiplexed on the same characteristic as
+            // autopilot data (0xAA) due to a bless/CoreBluetooth limitation with
+            // multiple notify characteristics.
+            val notifyChar = service.getCharacteristic(DATA_NOTIFY_UUID)
             if (notifyChar != null) {
                 g.setCharacteristicNotification(notifyChar, true)
                 val desc = notifyChar.getDescriptor(CCC_DESCRIPTOR_UUID)

@@ -149,16 +149,17 @@ async def test_ble(timeout_s: float = 20.0):
                 return errors
             print(f"  PASS: Service {SERVICE_UUID} found")
 
-            # --- Test Store notifications (battery binary) ---
-            print("\n--- Store Notifications (battery binary 0xBB) ---")
+            # --- Test Store notifications (battery binary, multiplexed on AA01) ---
+            print("\n--- Store Notifications (battery binary 0xBB on AA01) ---")
             store_data = []
 
             def store_callback(sender, data: bytearray):
-                store_data.append(bytes(data))
+                if len(data) > 0 and data[0] == 0xBB:
+                    store_data.append(bytes(data))
 
-            await client.start_notify(STORE_NOTIFY_UUID, store_callback)
+            await client.start_notify(SEASMART_NOTIFY_UUID, store_callback)
             await asyncio.sleep(8)  # Wait for at least one 5s notification
-            await client.stop_notify(STORE_NOTIFY_UUID)
+            await client.stop_notify(SEASMART_NOTIFY_UUID)
 
             if store_data:
                 print(f"  Received {len(store_data)} notification(s)")
@@ -193,11 +194,12 @@ async def test_ble(timeout_s: float = 20.0):
                 errors += 1
 
             # --- Test SeaSmart notifications (autopilot binary) ---
-            print("\n--- SeaSmart Notifications (autopilot binary 0xAA) ---")
+            print("\n--- Autopilot Notifications (binary 0xAA on AA01) ---")
             ap_data = []
 
             def ap_callback(sender, data: bytearray):
-                ap_data.append(bytes(data))
+                if len(data) > 0 and data[0] == 0xAA:
+                    ap_data.append(bytes(data))
 
             await client.start_notify(SEASMART_NOTIFY_UUID, ap_callback)
             await asyncio.sleep(2)  # 5Hz, should get ~10 notifications

@@ -7,9 +7,10 @@ Both WearOS apps support Bluetooth Low Energy as an alternative to WiFi/HTTP for
 | UUID | Name | Properties | Purpose |
 |------|------|-----------|---------|
 | `0000AA00-0000-1000-8000-00805f9b34fb` | BoatWatch Service | — | Container service |
-| `0000AA01-...` | Autopilot State | NOTIFY, READ | Firmware → watch: autopilot state |
-| `0000AA02-...` | Autopilot Command | WRITE | Watch → firmware: autopilot commands |
-| `0000AA03-...` | Battery State | NOTIFY, READ | Firmware → watch: battery state |
+| `0000AA01-...` | Data Stream | NOTIFY, READ | Firmware → watch: all state notifications |
+| `0000AA02-...` | Command | WRITE | Watch → firmware: autopilot commands |
+
+All state notifications (autopilot 0xAA and battery 0xBB) are multiplexed on the single AA01 characteristic, distinguished by their magic byte. The receiver filters by first byte to process only the messages it cares about.
 
 ## Connection Sequence
 
@@ -22,7 +23,7 @@ Both WearOS apps support Bluetooth Low Energy as an alternative to WiFi/HTTP for
 
 Auto-reconnect on disconnect after 3 seconds.
 
-## Battery State (0xBB) — Characteristic `0000AA03`
+## Battery State (0xBB) — Characteristic `0000AA01`
 
 Sent every 5 seconds. All multi-byte values are little-endian.
 

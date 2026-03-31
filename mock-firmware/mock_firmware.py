@@ -596,15 +596,18 @@ async def run_ble_server(sim_state: SimulatorState):
                 if tick % 50 == 0:
                     print(f"[BLE] AP notify: {len(ap_binary)}B ok={ok_ap}")
 
-            # --- Store notifications (battery, every 5s, binary format) ---
-            if tick % 25 == 0:
+            # --- Store notifications (battery, every 5s, binary on same characteristic) ---
+            # Send battery data on AA01 too (distinguished by 0xBB magic byte)
+            # because bless/CoreBluetooth has issues with notifications on
+            # multiple characteristics — only the first subscribed one works.
+            if tick % 25 == 0 and seasmart_char is not None:
                 with sim_state.lock:
                     binary_data = sim_state.battery.to_binary()
-                store_char = server.get_characteristic(STORE_NOTIFY_UUID)
-                if store_char is not None:
-                    store_char.value = bytearray(binary_data)
-                    ok_st = server.update_value(SERVICE_UUID, STORE_NOTIFY_UUID)
-                    print(f"[BLE] Store notify: {len(binary_data)}B ok={ok_st}")
+                seasmart_char.value = bytearray(binary_data)
+                ok_st = server.update_value(SERVICE_UUID, SEASMART_NOTIFY_UUID)
+                if tick % 50 == 0:
+                    print(f"[BLE] Store notify (via AA01): {len(binary_data)}B ok={ok_st}")
+                await asyncio.sleep(0.01)
 
             tick += 1
             await asyncio.sleep(0.2)
