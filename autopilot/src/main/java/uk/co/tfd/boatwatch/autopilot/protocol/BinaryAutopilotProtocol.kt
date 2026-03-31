@@ -22,8 +22,10 @@ import java.nio.ByteOrder
 object BinaryAutopilotProtocol {
 
     const val MAGIC: Byte = 0xAA.toByte()
+    const val AUTH_RESPONSE_MAGIC: Byte = 0xAF.toByte()
 
     // Command IDs
+    private const val CMD_AUTH: Byte = 0xF0.toByte()
     private const val CMD_STANDBY: Byte = 0x01
     private const val CMD_COMPASS: Byte = 0x02
     private const val CMD_WIND_AWA: Byte = 0x03
@@ -87,5 +89,16 @@ object BinaryAutopilotProtocol {
         return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
             .put(MAGIC).put(CMD_ADJUST_WIND).putShort(raw.toShort())
             .array()
+    }
+
+    fun cmdAuth(pin: String): ByteArray {
+        val pinBytes = pin.take(4).padEnd(4, '0').toByteArray(Charsets.US_ASCII)
+        return byteArrayOf(MAGIC, CMD_AUTH) + pinBytes
+    }
+
+    /** Returns true if auth accepted, false if denied, null if not an auth response. */
+    fun parseAuthResponse(data: ByteArray): Boolean? {
+        if (data.size < 2 || data[0] != AUTH_RESPONSE_MAGIC) return null
+        return data[1] == 0x01.toByte()
     }
 }

@@ -190,13 +190,18 @@ N_FIELDS_H = 20
 N_FIELDS_P = 17
 
 
+DEFAULT_BLE_PIN = "0000"
+
+
 class SimulatorState:
-    def __init__(self):
+    def __init__(self, ble_pin: str = DEFAULT_BLE_PIN):
         self.lock = threading.Lock()
         self.battery = BatteryState()
         self.autopilot = AutopilotState()
         self._tick = 0
         self._start_soc = 75
+        self.ble_pin = ble_pin
+        self.ble_authenticated = False
 
     def tick(self):
         """Called at ~1 Hz from background thread."""
@@ -315,11 +320,31 @@ class SimulatorState:
 
         return False
 
-    def handle_binary_autopilot_command(self, data: bytes) -> bool:
-        """Process a binary autopilot command (0xAA prefix). Returns True if handled."""
+    def handle_binary_autopilot_command(self, data: bytes) -> bytes | None:
+        """Process a binary autopilot command (0xAA prefix).
+        Returns auth response bytes to send back, or None."""
         if len(data) < 2 or data[0] != 0xAA:
-            return False
+            return None
         cmd = data[1]
+
+        # Auth command — always allowed
+        if cmd == 0xF0:
+            if len(data) >= 6:
+                pin = data[2:6].decode("ascii", errors="replace")
+                if pin == self.ble_pin:
+                    self.ble_authenticated = True
+                    print(f"[BLE AUTH] PIN '{pin}' — ACCEPTED")
+                    return bytes([0xAF, 0x01])
+                else:
+                    print(f"[BLE AUTH] PIN '{pin}' — DENIED (expected '{self.ble_pin}')")
+                    return bytes([0xAF, 0x00])
+            return bytes([0xAF, 0x00])
+
+        # All other commands require authentication
+        if not self.ble_authenticated:
+            print(f"[BLE CMD] Rejected cmd 0x{cmd:02X} — not authenticated")
+            return None
+
         with self.lock:
             if cmd == 0x01:
                 self.autopilot.mode = "standby"
@@ -356,8 +381,8 @@ class SimulatorState:
                 self.autopilot.target_wind = wind
                 print(f"[BIN CMD] ADJUST_WIND {delta:+.1f}° -> {self.autopilot.target_wind:.1f}°")
             else:
-                return False
-        return True
+                return None
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -559,32 +584,48 @@ async def run_ble_server(sim_state: SimulatorState, ble_name: str = "BoatWatch")
     )
 
     def on_write(char_uuid: str, data: bytes):
-        sim_state.handle_binary_autopilot_command(data)
+        response = sim_state.handle_binary_autopilot_command(data)
+        if response is not None:
+            # Send auth response on both notify characteristics
+            server.notify(autopilot_char, bytearray(response))
+            server.notify(battery_char, bytearray(response))
+
+    def on_connect():
+        sim_state.ble_authenticated = False
+        print(f"[BLE] Client connected — awaiting authentication (PIN: {sim_state.ble_pin})")
+
+    def on_disconnect():
+        sim_state.ble_authenticated = False
+        print(f"[BLE] Client disconnected — auth reset")
 
     server.on_write = on_write
+    server.on_connect = on_connect
+    server.on_disconnect = on_disconnect
 
     await server.start()
-    print(f"[BLE] GATT server started — advertising as 'BoatWatch'")
+    print(f"[BLE] GATT server started — advertising as '{ble_name}'")
     print(f"[BLE]   Service:           {SERVICE_UUID}")
     print(f"[BLE]   Autopilot notify:  {AUTOPILOT_NOTIFY_UUID}")
     print(f"[BLE]   Command write:     {COMMAND_UUID}")
     print(f"[BLE]   Battery notify:    {BATTERY_NOTIFY_UUID}")
+    print(f"[BLE]   PIN:               {sim_state.ble_pin}")
     print()
 
-    # Notification loop — each characteristic notifies independently
+    # Notification loop — gated on authentication
     tick = 0
     try:
         while True:
-            # Autopilot state at ~5 Hz
-            with sim_state.lock:
-                ap_data = sim_state.autopilot.to_binary()
-            server.notify(autopilot_char, bytearray(ap_data))
-
-            # Battery state at ~1 Hz (every 5th tick)
-            if tick % 5 == 0:
+            if sim_state.ble_authenticated:
+                # Autopilot state at ~5 Hz
                 with sim_state.lock:
-                    bat_data = sim_state.battery.to_binary()
-                server.notify(battery_char, bytearray(bat_data))
+                    ap_data = sim_state.autopilot.to_binary()
+                server.notify(autopilot_char, bytearray(ap_data))
+
+                # Battery state at ~1 Hz (every 5th tick)
+                if tick % 5 == 0:
+                    with sim_state.lock:
+                        bat_data = sim_state.battery.to_binary()
+                    server.notify(battery_char, bytearray(bat_data))
 
             tick += 1
             await asyncio.sleep(0.2)
@@ -649,6 +690,8 @@ def main():
     parser.add_argument("--no-ble", action="store_true", help="Disable BLE GATT server")
     parser.add_argument("--ble-name", type=str, default=None,
                         help="BLE device name (default: BoatWatch-<hostname-suffix>)")
+    parser.add_argument("--ble-pin", type=str, default=DEFAULT_BLE_PIN,
+                        help=f"BLE authentication PIN (default: {DEFAULT_BLE_PIN})")
     args = parser.parse_args()
 
     # Generate a unique BLE name from the hostname if not specified
@@ -656,6 +699,9 @@ def main():
         import platform
         host_short = platform.node().split(".")[0][:8]
         args.ble_name = f"BoatWatch-{host_short}"
+
+    # Configure PIN
+    state.ble_pin = args.ble_pin
 
     ticker = threading.Thread(target=background_ticker, daemon=True)
     ticker.start()

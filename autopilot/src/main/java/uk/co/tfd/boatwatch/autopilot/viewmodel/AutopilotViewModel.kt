@@ -21,6 +21,7 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
         private const val KEY_TRANSPORT_MODE = "transport_mode"
         private const val KEY_BLE_DEVICE_ADDRESS = "ble_device_address"
         private const val KEY_BLE_DEVICE_NAME = "ble_device_name"
+        private const val KEY_BLE_PIN = "ble_pin"
         private const val DEFAULT_URL = "http://boatsystems.local"
         private const val SOURCE_ADDRESS = 0x42
         private const val MAX_HISTORY = 5
@@ -42,6 +43,9 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _bleDeviceName = MutableStateFlow(prefs.getString(KEY_BLE_DEVICE_NAME, null))
     val bleDeviceName: StateFlow<String?> = _bleDeviceName
+
+    private val _blePin = MutableStateFlow(prefs.getString(KEY_BLE_PIN, "0000") ?: "0000")
+    val blePin: StateFlow<String> = _blePin
 
     private var client: AutopilotHttpClient = createClient()
     private var collectJob: Job? = null
@@ -72,7 +76,7 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
         return when {
             _demoMode.value -> FakeAutopilotClient()
             _transportMode.value == TransportMode.BLE && _bleDeviceAddress.value != null ->
-                BleAutopilotClient(getApplication(), _bleDeviceAddress.value!!)
+                BleAutopilotClient(getApplication(), _bleDeviceAddress.value!!, _blePin.value)
             else -> HttpAutopilotClient()
         }
     }
@@ -149,6 +153,11 @@ class AutopilotViewModel(application: Application) : AndroidViewModel(applicatio
             requestedWindMode = PilotMode.WIND_AWA
             startClient()
         }
+    }
+
+    fun setBlePin(pin: String) {
+        _blePin.value = pin
+        prefs.edit().putString(KEY_BLE_PIN, pin).apply()
     }
 
     fun updateServerUrl(url: String) {

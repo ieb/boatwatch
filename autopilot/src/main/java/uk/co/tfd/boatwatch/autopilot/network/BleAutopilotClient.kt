@@ -13,6 +13,7 @@ import java.util.UUID
 class BleAutopilotClient(
     private val context: Context,
     private val deviceAddress: String,
+    private val pin: String,
 ) : AutopilotHttpClient {
 
     companion object {
@@ -34,6 +35,7 @@ class BleAutopilotClient(
     private var gatt: BluetoothGatt? = null
     private var commandCharacteristic: BluetoothGattCharacteristic? = null
     @Volatile private var destroyed = false
+    @Volatile private var authSent = false
 
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
@@ -42,11 +44,13 @@ class BleAutopilotClient(
                 BluetoothProfile.STATE_CONNECTED -> {
                     Log.i(TAG, "GATT connected, requesting MTU 64")
                     _connectionState.value = ConnectionState.CONNECTING
+                    authSent = false
                     g.requestMtu(64)
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.i(TAG, "GATT disconnected (status=$status)")
                     _connectionState.value = ConnectionState.DISCONNECTED
+                    authSent = false
                     g.close()
                     gatt = null
                     commandCharacteristic = null
@@ -69,7 +73,9 @@ class BleAutopilotClient(
                 return
             }
 
-            // Enable notifications on Autopilot characteristic
+            commandCharacteristic = service.getCharacteristic(AUTOPILOT_COMMAND_UUID)
+
+            // Enable notifications — auth will be sent in onDescriptorWrite callback
             val notifyChar = service.getCharacteristic(AUTOPILOT_NOTIFY_UUID)
             if (notifyChar != null) {
                 g.setCharacteristicNotification(notifyChar, true)
@@ -78,10 +84,15 @@ class BleAutopilotClient(
                     g.writeDescriptor(desc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
                 }
             }
+        }
 
-            commandCharacteristic = service.getCharacteristic(AUTOPILOT_COMMAND_UUID)
-            _connectionState.value = ConnectionState.CONNECTED
-            Log.i(TAG, "BLE ready — notifications enabled")
+        override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            if (authSent) return
+            authSent = true
+            val cmdChar = commandCharacteristic ?: return
+            val authData = BinaryAutopilotProtocol.cmdAuth(pin)
+            g.writeCharacteristic(cmdChar, authData, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            Log.i(TAG, "BLE auth sent — awaiting response")
         }
 
         override fun onCharacteristicChanged(
@@ -96,6 +107,19 @@ class BleAutopilotClient(
     }
 
     private fun processBytes(data: ByteArray) {
+        // Check for auth response (0xAF magic)
+        val authResult = BinaryAutopilotProtocol.parseAuthResponse(data)
+        if (authResult != null) {
+            if (authResult) {
+                _connectionState.value = ConnectionState.CONNECTED
+                Log.i(TAG, "BLE authenticated")
+            } else {
+                _connectionState.value = ConnectionState.ERROR
+                Log.w(TAG, "BLE authentication denied")
+            }
+            return
+        }
+        // Normal state update
         val parsed = BinaryAutopilotProtocol.parseState(data) ?: return
         _state.value = parsed
     }

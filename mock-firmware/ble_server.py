@@ -79,6 +79,9 @@ class _PeripheralDelegate(NSObject):
         self._peripheral_manager = None
         self._characteristics_by_cb: dict = {}  # CBCharacteristic hash -> GATTCharacteristic
         self._write_callback: Optional[Callable] = None
+        self._connect_callback: Optional[Callable] = None
+        self._disconnect_callback: Optional[Callable] = None
+        self._client_connected = False
         self._event_loop: Optional[asyncio.AbstractEventLoop] = None
         return self
 
@@ -123,11 +126,16 @@ class _PeripheralDelegate(NSObject):
         char_hash = hash(characteristic)
         gatt_char = self._characteristics_by_cb.get(char_hash)
         if gatt_char:
+            was_empty = len(gatt_char.subscribers) == 0
             gatt_char.subscribers.add(central)
             logger.info(
                 f"Central subscribed to {gatt_char.uuid} "
                 f"(now {len(gatt_char.subscribers)} subscriber(s))"
             )
+            # Notify connect once per connection
+            if not self._client_connected and self._connect_callback:
+                self._client_connected = True
+                self._connect_callback()
 
     def peripheralManager_central_didUnsubscribeFromCharacteristic_(
         self, pm, central, characteristic
@@ -140,6 +148,15 @@ class _PeripheralDelegate(NSObject):
                 f"Central unsubscribed from {gatt_char.uuid} "
                 f"(now {len(gatt_char.subscribers)} subscriber(s))"
             )
+            # Check if all characteristics have no subscribers
+            all_empty = all(
+                len(c.subscribers) == 0
+                for c in self._characteristics_by_cb.values()
+            )
+            if all_empty and self._client_connected:
+                self._client_connected = False
+                if self._disconnect_callback:
+                    self._disconnect_callback()
 
     def peripheralManager_didReceiveReadRequest_(self, pm, request):
         char_hash = hash(request.characteristic())
@@ -189,6 +206,8 @@ class BleGattServer:
         self._delegate = _PeripheralDelegate.alloc().init()
         self._delegate.start_manager()
         self.on_write: Optional[Callable[[str, bytes], None]] = None
+        self.on_connect: Optional[Callable[[], None]] = None
+        self.on_disconnect: Optional[Callable[[], None]] = None
 
     def add_service(self, uuid: str) -> GATTService:
         service = GATTService(uuid)
@@ -210,6 +229,8 @@ class BleGattServer:
         """Build CoreBluetooth objects, add services, and start advertising."""
         pm = self._delegate._peripheral_manager
         self._delegate._write_callback = self._handle_write
+        self._delegate._connect_callback = self._handle_connect
+        self._delegate._disconnect_callback = self._handle_disconnect
 
         for service in self.services.values():
             cb_chars = []
@@ -262,6 +283,14 @@ class BleGattServer:
     def _handle_write(self, char_uuid: str, data: bytes):
         if self.on_write:
             self.on_write(char_uuid, data)
+
+    def _handle_connect(self):
+        if self.on_connect:
+            self.on_connect()
+
+    def _handle_disconnect(self):
+        if self.on_disconnect:
+            self.on_disconnect()
 
     async def stop(self):
         pm = self._delegate._peripheral_manager

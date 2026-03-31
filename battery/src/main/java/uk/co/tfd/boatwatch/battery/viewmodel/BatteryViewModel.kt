@@ -17,6 +17,7 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
         private const val KEY_TRANSPORT_MODE = "transport_mode"
         private const val KEY_BLE_DEVICE_ADDRESS = "ble_device_address"
         private const val KEY_BLE_DEVICE_NAME = "ble_device_name"
+        private const val KEY_BLE_PIN = "ble_pin"
         private const val DEFAULT_URL = "http://boatsystems.local"
         private const val MAX_HISTORY = 5
     }
@@ -37,6 +38,9 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
 
     private val _bleDeviceName = MutableStateFlow(prefs.getString(KEY_BLE_DEVICE_NAME, null))
     val bleDeviceName: StateFlow<String?> = _bleDeviceName
+
+    private val _blePin = MutableStateFlow(prefs.getString(KEY_BLE_PIN, "0000") ?: "0000")
+    val blePin: StateFlow<String> = _blePin
 
     private var dataSource: BatteryDataSource = createDataSource()
 
@@ -61,7 +65,7 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
         return when {
             _demoMode.value -> FakeBatteryDataSource()
             _transportMode.value == TransportMode.BLE && _bleDeviceAddress.value != null ->
-                BleBatteryDataSource(getApplication(), _bleDeviceAddress.value!!)
+                BleBatteryDataSource(getApplication(), _bleDeviceAddress.value!!, _blePin.value)
             else -> HttpBatteryDataSource()
         }
     }
@@ -128,6 +132,11 @@ class BatteryViewModel(application: Application) : AndroidViewModel(application)
             _connectionStatus.value = ConnectionStatus.DISCONNECTED
             startDataSource()
         }
+    }
+
+    fun setBlePin(pin: String) {
+        _blePin.value = pin
+        prefs.edit().putString(KEY_BLE_PIN, pin).apply()
     }
 
     fun updateServerUrl(url: String) {

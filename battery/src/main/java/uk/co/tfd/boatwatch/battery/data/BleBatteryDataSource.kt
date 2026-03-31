@@ -12,12 +12,14 @@ import java.util.UUID
 class BleBatteryDataSource(
     private val context: Context,
     private val deviceAddress: String,
+    private val pin: String,
 ) : BatteryDataSource {
 
     companion object {
         private const val TAG = "BleBattery"
         private const val RECONNECT_DELAY_MS = 3000L
         val SERVICE_UUID: UUID = UUID.fromString("0000AA00-0000-1000-8000-00805f9b34fb")
+        val COMMAND_UUID: UUID = UUID.fromString("0000AA02-0000-1000-8000-00805f9b34fb")
         val BATTERY_NOTIFY_UUID: UUID = UUID.fromString("0000AA03-0000-1000-8000-00805f9b34fb")
         val CCC_DESCRIPTOR_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }
@@ -30,7 +32,9 @@ class BleBatteryDataSource(
 
     private val handler = Handler(Looper.getMainLooper())
     private var gatt: BluetoothGatt? = null
+    private var commandCharacteristic: BluetoothGattCharacteristic? = null
     @Volatile private var destroyed = false
+    @Volatile private var authSent = false
 
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
@@ -39,11 +43,13 @@ class BleBatteryDataSource(
                 BluetoothProfile.STATE_CONNECTED -> {
                     Log.i(TAG, "GATT connected, requesting MTU 64")
                     _connectionStatus.value = ConnectionStatus.CONNECTING
+                    authSent = false
                     g.requestMtu(64)
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.i(TAG, "GATT disconnected (status=$status)")
                     _connectionStatus.value = ConnectionStatus.DISCONNECTED
+                    authSent = false
                     g.close()
                     gatt = null
                     scheduleReconnect()
@@ -65,7 +71,9 @@ class BleBatteryDataSource(
                 return
             }
 
-            // Enable notifications on the battery characteristic (AA03)
+            commandCharacteristic = service.getCharacteristic(COMMAND_UUID)
+
+            // Enable notifications — auth will be sent in onDescriptorWrite callback
             val notifyChar = service.getCharacteristic(BATTERY_NOTIFY_UUID)
             if (notifyChar != null) {
                 g.setCharacteristicNotification(notifyChar, true)
@@ -74,9 +82,15 @@ class BleBatteryDataSource(
                     g.writeDescriptor(desc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
                 }
             }
+        }
 
-            _connectionStatus.value = ConnectionStatus.CONNECTED
-            Log.i(TAG, "BLE ready — notifications enabled")
+        override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            if (authSent) return
+            authSent = true
+            val cmdChar = commandCharacteristic ?: return
+            val authData = BinaryBatteryParser.cmdAuth(pin)
+            g.writeCharacteristic(cmdChar, authData, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            Log.i(TAG, "BLE auth sent — awaiting response")
         }
 
         override fun onCharacteristicChanged(
@@ -89,6 +103,19 @@ class BleBatteryDataSource(
     }
 
     private fun processBytes(data: ByteArray) {
+        // Check for auth response (0xAF magic)
+        val authResult = BinaryBatteryParser.parseAuthResponse(data)
+        if (authResult != null) {
+            if (authResult) {
+                _connectionStatus.value = ConnectionStatus.CONNECTED
+                Log.i(TAG, "BLE authenticated")
+            } else {
+                _connectionStatus.value = ConnectionStatus.ERROR
+                Log.w(TAG, "BLE authentication denied")
+            }
+            return
+        }
+        // Normal battery data
         val parsed = BinaryBatteryParser.parseBinary(data) ?: return
         _state.value = parsed
     }

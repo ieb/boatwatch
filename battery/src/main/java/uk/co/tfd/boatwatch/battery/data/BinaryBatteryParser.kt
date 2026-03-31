@@ -24,6 +24,8 @@ import java.nio.ByteOrder
 object BinaryBatteryParser {
 
     const val MAGIC: Byte = 0xBB.toByte()
+    const val AUTH_CMD_MAGIC: Byte = 0xAA.toByte()
+    const val AUTH_RESPONSE_MAGIC: Byte = 0xAF.toByte()
     private const val HEADER_SIZE = 16 // bytes before cell array
 
     fun parseBinary(data: ByteArray): BatteryState? {
@@ -69,5 +71,16 @@ object BinaryBatteryParser {
             temperatures = temperatures,
             lastUpdated = System.currentTimeMillis(),
         )
+    }
+
+    fun cmdAuth(pin: String): ByteArray {
+        val pinBytes = pin.take(4).padEnd(4, '0').toByteArray(Charsets.US_ASCII)
+        return byteArrayOf(AUTH_CMD_MAGIC, 0xF0.toByte()) + pinBytes
+    }
+
+    /** Returns true if auth accepted, false if denied, null if not an auth response. */
+    fun parseAuthResponse(data: ByteArray): Boolean? {
+        if (data.size < 2 || data[0] != AUTH_RESPONSE_MAGIC) return null
+        return data[1] == 0x01.toByte()
     }
 }

@@ -42,6 +42,8 @@ fun SettingsScreen(
     onSetDemoMode: (Boolean) -> Unit,
     onSetTransportMode: (TransportMode) -> Unit,
     onSelectBleDevice: (address: String, name: String) -> Unit,
+    blePin: String = "0000",
+    onSetBlePin: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -52,15 +54,56 @@ fun SettingsScreen(
     var bleScanning by remember { mutableStateOf(false) }
     var bleDevices by remember { mutableStateOf<List<ScannedBleDevice>>(emptyList()) }
 
-    // BLE permission handling
-    var blePermGranted by remember { mutableStateOf(false) }
+    // BLE scan function — called after permissions are granted
+    fun startBleScan() {
+        if (bleScanning) return
+        bleScanning = true
+        bleDevices = emptyList()
+        scope.launch {
+            val results = mutableListOf<ScannedBleDevice>()
+            val adapter = (context.getSystemService(android.content.Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager)?.adapter
+            val scanner = adapter?.bluetoothLeScanner
+            if (scanner != null) {
+                val found = mutableSetOf<String>()
+                val callback = object : ScanCallback() {
+                    override fun onScanResult(callbackType: Int, result: ScanResult) {
+                        val addr = result.device.address
+                        if (addr !in found) {
+                            found.add(addr)
+                            val name = result.scanRecord?.deviceName
+                                ?: result.device.name
+                                ?: "BoatWatch"
+                            results.add(ScannedBleDevice(name, addr))
+                            bleDevices = results.toList()
+                        }
+                    }
+                }
+                val filter = ScanFilter.Builder()
+                    .setServiceUuid(ParcelUuid(BleAutopilotClient.SERVICE_UUID))
+                    .build()
+                val settings = ScanSettings.Builder()
+                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                    .build()
+                try {
+                    scanner.startScan(listOf(filter), settings, callback)
+                    delay(10000)
+                    scanner.stopScan(callback)
+                } catch (_: SecurityException) { }
+            }
+            bleScanning = false
+        }
+    }
+
+    // BLE permission handling — start scan when granted
     val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        blePermGranted = results.values.all { it }
+        if (results.values.all { it }) {
+            startBleScan()
+        }
     }
 
-    // RemoteInput launcher
+    // RemoteInput launchers
     val inputLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -69,6 +112,17 @@ fun SettingsScreen(
         val url = results?.getCharSequence("url")?.toString()
         if (!url.isNullOrBlank()) {
             onUpdateUrl(url)
+        }
+    }
+
+    val pinLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data ?: return@rememberLauncherForActivityResult
+        val results = RemoteInput.getResultsFromIntent(data)
+        val pin = results?.getCharSequence("pin")?.toString()?.take(4)
+        if (!pin.isNullOrBlank()) {
+            onSetBlePin(pin)
         }
     }
 
@@ -276,46 +330,15 @@ fun SettingsScreen(
                 Chip(
                     onClick = {
                         if (bleScanning) return@Chip
-                        // Request permissions first
-                        permLauncher.launch(arrayOf(
-                            Manifest.permission.BLUETOOTH_SCAN,
-                            Manifest.permission.BLUETOOTH_CONNECT,
-                        ))
-
-                        bleScanning = true
-                        bleDevices = emptyList()
-                        scope.launch {
-                            val results = mutableListOf<ScannedBleDevice>()
-                            val adapter = (context.getSystemService(android.content.Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager)?.adapter
-                            val scanner = adapter?.bluetoothLeScanner
-                            if (scanner != null) {
-                                val found = mutableSetOf<String>()
-                                val callback = object : ScanCallback() {
-                                    override fun onScanResult(callbackType: Int, result: ScanResult) {
-                                        val addr = result.device.address
-                                        if (addr !in found) {
-                                            found.add(addr)
-                                            val name = result.scanRecord?.deviceName
-                                                ?: result.device.name
-                                                ?: result.device.address
-                                            results.add(ScannedBleDevice(name, addr))
-                                            bleDevices = results.toList()
-                                        }
-                                    }
-                                }
-                                val filter = ScanFilter.Builder()
-                                    .setServiceUuid(ParcelUuid(BleAutopilotClient.SERVICE_UUID))
-                                    .build()
-                                val settings = ScanSettings.Builder()
-                                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                                    .build()
-                                try {
-                                    scanner.startScan(listOf(filter), settings, callback)
-                                    delay(10000)
-                                    scanner.stopScan(callback)
-                                } catch (_: SecurityException) { }
-                            }
-                            bleScanning = false
+                        val hasPerms = context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) ==
+                            android.content.pm.PackageManager.PERMISSION_GRANTED
+                        if (hasPerms) {
+                            startBleScan()
+                        } else {
+                            permLauncher.launch(arrayOf(
+                                Manifest.permission.BLUETOOTH_SCAN,
+                                Manifest.permission.BLUETOOTH_CONNECT,
+                            ))
                         }
                     },
                     label = {
@@ -344,6 +367,23 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
+            }
+
+            // BLE PIN entry
+            item {
+                Chip(
+                    onClick = {
+                        val remoteInput = RemoteInput.Builder("pin")
+                            .setLabel("BLE PIN (4 digits)")
+                            .build()
+                        val intent = RemoteInputIntentHelper.createActionRemoteInputIntent()
+                        RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(remoteInput))
+                        pinLauncher.launch(intent)
+                    },
+                    label = { Text("PIN: $blePin") },
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
         } // end if (!demoMode)

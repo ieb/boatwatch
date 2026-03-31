@@ -73,7 +73,7 @@ def test_http(base_url: str = "http://localhost:8080"):
 # BLE tests
 # ---------------------------------------------------------------------------
 
-async def test_ble(timeout_s: float = 20.0, expected_name: str = "BoatWatch"):
+async def test_ble(timeout_s: float = 20.0, expected_name: str = "BoatWatch", expected_pin: str = "0000"):
     print("=" * 60)
     print("BLE TESTS")
     print("=" * 60)
@@ -256,8 +256,55 @@ async def test_ble(timeout_s: float = 20.0, expected_name: str = "BoatWatch"):
                 print(f"  FAIL: No autopilot notifications received in 2s")
                 errors += 1
 
-            # --- Test command write ---
-            print("\n--- Command Write (binary STANDBY) ---")
+            # --- Test authentication with correct PIN ---
+            print(f"\n--- Authentication (PIN: {expected_pin}) ---")
+            auth_responses = []
+
+            def auth_callback(sender, data: bytearray):
+                if len(data) >= 2 and data[0] == 0xAF:
+                    auth_responses.append(bytes(data))
+
+            await client.start_notify(SEASMART_NOTIFY_UUID, auth_callback)
+            try:
+                auth_cmd = bytes([0xAA, 0xF0]) + expected_pin.encode("ascii")[:4]
+                await client.write_gatt_char(COMMAND_UUID, auth_cmd)
+                print(f"  Sent auth: {auth_cmd.hex()}")
+                await asyncio.sleep(1)
+
+                if auth_responses:
+                    resp = auth_responses[0]
+                    if resp[1] == 0x01:
+                        print(f"  PASS: Auth accepted (0xAF 0x01)")
+                    else:
+                        print(f"  FAIL: Auth denied (0xAF 0x{resp[1]:02X})")
+                        errors += 1
+                else:
+                    print(f"  FAIL: No auth response received")
+                    errors += 1
+            finally:
+                await client.stop_notify(SEASMART_NOTIFY_UUID)
+
+            # --- Test notifications flow after auth ---
+            print("\n--- Post-Auth Notifications ---")
+            post_auth_data = []
+
+            def post_auth_callback(sender, data: bytearray):
+                if len(data) > 0 and data[0] in (0xAA, 0xBB):
+                    post_auth_data.append(bytes(data))
+
+            await client.start_notify(SEASMART_NOTIFY_UUID, post_auth_callback)
+            await asyncio.sleep(2)
+            await client.stop_notify(SEASMART_NOTIFY_UUID)
+
+            if post_auth_data:
+                print(f"  Received {len(post_auth_data)} notification(s) after auth")
+                print(f"  PASS: Notifications flowing after authentication")
+            else:
+                print(f"  FAIL: No notifications after authentication")
+                errors += 1
+
+            # --- Test command write (should work after auth) ---
+            print("\n--- Command Write (binary STANDBY, after auth) ---")
             try:
                 cmd = bytes([0xAA, 0x01])  # STANDBY
                 await client.write_gatt_char(COMMAND_UUID, cmd)
@@ -266,6 +313,34 @@ async def test_ble(timeout_s: float = 20.0, expected_name: str = "BoatWatch"):
             except Exception as e:
                 print(f"  FAIL: Command write error: {e}")
                 errors += 1
+
+            # --- Test wrong PIN ---
+            print("\n--- Authentication (wrong PIN) ---")
+            wrong_responses = []
+
+            def wrong_callback(sender, data: bytearray):
+                if len(data) >= 2 and data[0] == 0xAF:
+                    wrong_responses.append(bytes(data))
+
+            await client.start_notify(SEASMART_NOTIFY_UUID, wrong_callback)
+            try:
+                wrong_cmd = bytes([0xAA, 0xF0, 0x39, 0x39, 0x39, 0x39])  # PIN "9999"
+                await client.write_gatt_char(COMMAND_UUID, wrong_cmd)
+                print(f"  Sent wrong PIN: {wrong_cmd.hex()}")
+                await asyncio.sleep(1)
+
+                if wrong_responses:
+                    resp = wrong_responses[0]
+                    if resp[1] == 0x00:
+                        print(f"  PASS: Auth correctly denied (0xAF 0x00)")
+                    else:
+                        print(f"  FAIL: Auth should have been denied but got 0x{resp[1]:02X}")
+                        errors += 1
+                else:
+                    print(f"  FAIL: No auth response for wrong PIN")
+                    errors += 1
+            finally:
+                await client.stop_notify(SEASMART_NOTIFY_UUID)
 
     except Exception as e:
         print(f"  FAIL: Connection error: {e}")
@@ -285,6 +360,8 @@ def main():
     parser.add_argument("--url", default="http://localhost:8080", help="HTTP base URL")
     parser.add_argument("--ble-name", default="BoatWatch",
                         help="Expected BLE name prefix (default: BoatWatch)")
+    parser.add_argument("--ble-pin", default="0000",
+                        help="BLE PIN for authentication (default: 0000)")
     args = parser.parse_args()
 
     total_errors = 0
@@ -293,7 +370,7 @@ def main():
         total_errors += test_http(args.url)
 
     if not args.http_only:
-        total_errors += asyncio.run(test_ble(expected_name=args.ble_name))
+        total_errors += asyncio.run(test_ble(expected_name=args.ble_name, expected_pin=args.ble_pin))
 
     print("\n" + "=" * 60)
     if total_errors == 0:
