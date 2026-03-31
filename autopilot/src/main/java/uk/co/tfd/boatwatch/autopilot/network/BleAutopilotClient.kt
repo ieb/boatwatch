@@ -19,8 +19,8 @@ class BleAutopilotClient(
         private const val TAG = "BleAutopilot"
         private const val RECONNECT_DELAY_MS = 3000L
         val SERVICE_UUID: UUID = UUID.fromString("0000AA00-0000-1000-8000-00805f9b34fb")
-        val SEASMART_NOTIFY_UUID: UUID = UUID.fromString("0000AA01-0000-1000-8000-00805f9b34fb")
-        val SEASMART_COMMAND_UUID: UUID = UUID.fromString("0000AA02-0000-1000-8000-00805f9b34fb")
+        val AUTOPILOT_NOTIFY_UUID: UUID = UUID.fromString("0000AA01-0000-1000-8000-00805f9b34fb")
+        val AUTOPILOT_COMMAND_UUID: UUID = UUID.fromString("0000AA02-0000-1000-8000-00805f9b34fb")
         val CCC_DESCRIPTOR_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }
 
@@ -40,9 +40,9 @@ class BleAutopilotClient(
             if (destroyed) return
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
-                    Log.i(TAG, "GATT connected, requesting MTU 512")
+                    Log.i(TAG, "GATT connected, requesting MTU 64")
                     _connectionState.value = ConnectionState.CONNECTING
-                    g.requestMtu(512)
+                    g.requestMtu(64)
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.i(TAG, "GATT disconnected (status=$status)")
@@ -69,28 +69,19 @@ class BleAutopilotClient(
                 return
             }
 
-            // Enable notifications on SeaSmart characteristic
-            val notifyChar = service.getCharacteristic(SEASMART_NOTIFY_UUID)
+            // Enable notifications on Autopilot characteristic
+            val notifyChar = service.getCharacteristic(AUTOPILOT_NOTIFY_UUID)
             if (notifyChar != null) {
                 g.setCharacteristicNotification(notifyChar, true)
                 val desc = notifyChar.getDescriptor(CCC_DESCRIPTOR_UUID)
                 if (desc != null) {
-                    desc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                    g.writeDescriptor(desc)
+                    g.writeDescriptor(desc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
                 }
             }
 
-            commandCharacteristic = service.getCharacteristic(SEASMART_COMMAND_UUID)
+            commandCharacteristic = service.getCharacteristic(AUTOPILOT_COMMAND_UUID)
             _connectionState.value = ConnectionState.CONNECTED
             Log.i(TAG, "BLE ready — notifications enabled")
-        }
-
-        @Deprecated("Deprecated in API 33")
-        override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            if (characteristic.uuid == SEASMART_NOTIFY_UUID) {
-                val bytes = characteristic.value ?: return
-                processBytes(bytes)
-            }
         }
 
         override fun onCharacteristicChanged(
@@ -98,7 +89,7 @@ class BleAutopilotClient(
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray,
         ) {
-            if (characteristic.uuid == SEASMART_NOTIFY_UUID) {
+            if (characteristic.uuid == AUTOPILOT_NOTIFY_UUID) {
                 processBytes(value)
             }
         }
@@ -119,7 +110,8 @@ class BleAutopilotClient(
         if (destroyed) return
         _connectionState.value = ConnectionState.CONNECTING
 
-        val adapter = BluetoothAdapter.getDefaultAdapter()
+        val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        val adapter = btManager?.adapter
         if (adapter == null || !adapter.isEnabled) {
             Log.w(TAG, "Bluetooth adapter not available or disabled")
             _connectionState.value = ConnectionState.ERROR
@@ -154,8 +146,7 @@ class BleAutopilotClient(
         val char = commandCharacteristic ?: return false
         val g = gatt ?: return false
         return try {
-            char.value = data
-            g.writeCharacteristic(char)
+            g.writeCharacteristic(char, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == BluetoothStatusCodes.SUCCESS
         } catch (e: Exception) {
             Log.w(TAG, "BLE write failed: ${e.message}")
             false

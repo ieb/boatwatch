@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.RemoteInput
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.*
-import android.os.Build
 import android.os.ParcelUuid
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -278,21 +277,16 @@ fun SettingsScreen(
                     onClick = {
                         if (bleScanning) return@Chip
                         // Request permissions first
-                        val perms = if (Build.VERSION.SDK_INT >= 31) {
-                            arrayOf(
-                                Manifest.permission.BLUETOOTH_SCAN,
-                                Manifest.permission.BLUETOOTH_CONNECT,
-                            )
-                        } else {
-                            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
-                        }
-                        permLauncher.launch(perms)
+                        permLauncher.launch(arrayOf(
+                            Manifest.permission.BLUETOOTH_SCAN,
+                            Manifest.permission.BLUETOOTH_CONNECT,
+                        ))
 
                         bleScanning = true
                         bleDevices = emptyList()
                         scope.launch {
                             val results = mutableListOf<ScannedBleDevice>()
-                            val adapter = BluetoothAdapter.getDefaultAdapter()
+                            val adapter = (context.getSystemService(android.content.Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager)?.adapter
                             val scanner = adapter?.bluetoothLeScanner
                             if (scanner != null) {
                                 val found = mutableSetOf<String>()

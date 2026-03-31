@@ -37,9 +37,9 @@ class BleBatteryDataSource(
             if (destroyed) return
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
-                    Log.i(TAG, "GATT connected, requesting MTU 512")
+                    Log.i(TAG, "GATT connected, requesting MTU 64")
                     _connectionStatus.value = ConnectionStatus.CONNECTING
-                    g.requestMtu(512)
+                    g.requestMtu(64)
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.i(TAG, "GATT disconnected (status=$status)")
@@ -71,19 +71,12 @@ class BleBatteryDataSource(
                 g.setCharacteristicNotification(notifyChar, true)
                 val desc = notifyChar.getDescriptor(CCC_DESCRIPTOR_UUID)
                 if (desc != null) {
-                    desc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                    g.writeDescriptor(desc)
+                    g.writeDescriptor(desc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
                 }
             }
 
             _connectionStatus.value = ConnectionStatus.CONNECTED
             Log.i(TAG, "BLE ready — notifications enabled")
-        }
-
-        @Deprecated("Deprecated in API 33")
-        override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            val bytes = characteristic.value ?: return
-            processBytes(bytes)
         }
 
         override fun onCharacteristicChanged(
@@ -110,7 +103,8 @@ class BleBatteryDataSource(
         if (destroyed) return
         _connectionStatus.value = ConnectionStatus.CONNECTING
 
-        val adapter = BluetoothAdapter.getDefaultAdapter()
+        val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        val adapter = btManager?.adapter
         if (adapter == null || !adapter.isEnabled) {
             Log.w(TAG, "Bluetooth adapter not available or disabled")
             _connectionStatus.value = ConnectionStatus.ERROR
