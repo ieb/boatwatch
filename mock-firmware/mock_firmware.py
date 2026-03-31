@@ -517,97 +517,74 @@ def background_ticker():
 
 
 # ---------------------------------------------------------------------------
-# BLE GATT Server
+# BLE GATT Server (direct CoreBluetooth via PyObjC)
 # ---------------------------------------------------------------------------
 
 SERVICE_UUID = "0000aa00-0000-1000-8000-00805f9b34fb"
-SEASMART_NOTIFY_UUID = "0000aa01-0000-1000-8000-00805f9b34fb"
-SEASMART_COMMAND_UUID = "0000aa02-0000-1000-8000-00805f9b34fb"
-STORE_NOTIFY_UUID = "0000aa03-0000-1000-8000-00805f9b34fb"
+AUTOPILOT_NOTIFY_UUID = "0000aa01-0000-1000-8000-00805f9b34fb"
+COMMAND_UUID = "0000aa02-0000-1000-8000-00805f9b34fb"
+BATTERY_NOTIFY_UUID = "0000aa03-0000-1000-8000-00805f9b34fb"
 
 
 async def run_ble_server(sim_state: SimulatorState):
     """Run the BLE GATT server. Must be called from the main thread on macOS
     because CoreBluetooth requires the main thread's CFRunLoop."""
     try:
-        from bless import BlessServer, BlessGATTCharacteristic, GATTCharacteristicProperties, GATTAttributePermissions
-    except ImportError:
-        print("[BLE] bless library not available — BLE server disabled")
+        from ble_server import BleGattServer, GATTCharacteristic
+    except ImportError as e:
+        print(f"[BLE] BLE server not available: {e}")
         return
 
-    server = BlessServer(name="BoatWatch")
+    server = BleGattServer("BoatWatch")
 
-    def on_write(characteristic: BlessGATTCharacteristic, value: bytes, **kwargs):
-        """Handle binary command writes."""
-        if characteristic.uuid == SEASMART_COMMAND_UUID:
-            sim_state.handle_binary_autopilot_command(value)
+    # Build GATT service
+    service = server.add_service(SERVICE_UUID)
 
-    server.write_request_func = on_write
-
-    await server.add_new_service(SERVICE_UUID)
-
-    # SeaSmart notify characteristic (autopilot data)
-    await server.add_new_characteristic(
-        SERVICE_UUID,
-        SEASMART_NOTIFY_UUID,
-        GATTCharacteristicProperties.read | GATTCharacteristicProperties.notify,
-        None,
-        GATTAttributePermissions.readable,
+    autopilot_char = server.add_characteristic(
+        service, AUTOPILOT_NOTIFY_UUID,
+        GATTCharacteristic.PROP_READ | GATTCharacteristic.PROP_NOTIFY,
+        GATTCharacteristic.PERM_READ,
     )
 
-    # SeaSmart command characteristic (autopilot commands)
-    await server.add_new_characteristic(
-        SERVICE_UUID,
-        SEASMART_COMMAND_UUID,
-        GATTCharacteristicProperties.write | GATTCharacteristicProperties.write_without_response,
-        None,
-        GATTAttributePermissions.writeable,
+    server.add_characteristic(
+        service, COMMAND_UUID,
+        GATTCharacteristic.PROP_WRITE | GATTCharacteristic.PROP_WRITE_NO_RESP,
+        GATTCharacteristic.PERM_WRITE,
     )
 
-    # Store notify characteristic (battery data)
-    await server.add_new_characteristic(
-        SERVICE_UUID,
-        STORE_NOTIFY_UUID,
-        GATTCharacteristicProperties.read | GATTCharacteristicProperties.notify,
-        None,
-        GATTAttributePermissions.readable,
+    battery_char = server.add_characteristic(
+        service, BATTERY_NOTIFY_UUID,
+        GATTCharacteristic.PROP_READ | GATTCharacteristic.PROP_NOTIFY,
+        GATTCharacteristic.PERM_READ,
     )
+
+    def on_write(char_uuid: str, data: bytes):
+        sim_state.handle_binary_autopilot_command(data)
+
+    server.on_write = on_write
 
     await server.start()
     print(f"[BLE] GATT server started — advertising as 'BoatWatch'")
-    print(f"[BLE]   Service:          {SERVICE_UUID}")
-    print(f"[BLE]   SeaSmart notify:  {SEASMART_NOTIFY_UUID}")
-    print(f"[BLE]   SeaSmart command: {SEASMART_COMMAND_UUID}")
-    print(f"[BLE]   Store notify:     {STORE_NOTIFY_UUID}")
+    print(f"[BLE]   Service:           {SERVICE_UUID}")
+    print(f"[BLE]   Autopilot notify:  {AUTOPILOT_NOTIFY_UUID}")
+    print(f"[BLE]   Command write:     {COMMAND_UUID}")
+    print(f"[BLE]   Battery notify:    {BATTERY_NOTIFY_UUID}")
     print()
 
-    # Notification loop
+    # Notification loop — each characteristic notifies independently
     tick = 0
-    print("[BLE] Entering notification loop")
     try:
         while True:
-            # --- Autopilot state notifications (~5 Hz, binary) ---
-            seasmart_char = server.get_characteristic(SEASMART_NOTIFY_UUID)
-            if seasmart_char is not None:
-                with sim_state.lock:
-                    ap_binary = sim_state.autopilot.to_binary()
-                seasmart_char.value = bytearray(ap_binary)
-                ok_ap = server.update_value(SERVICE_UUID, SEASMART_NOTIFY_UUID)
-                if tick % 50 == 0:
-                    print(f"[BLE] AP notify: {len(ap_binary)}B ok={ok_ap}")
+            # Autopilot state at ~5 Hz
+            with sim_state.lock:
+                ap_data = sim_state.autopilot.to_binary()
+            server.notify(autopilot_char, bytearray(ap_data))
 
-            # --- Store notifications (battery, every 5s, binary on same characteristic) ---
-            # Send battery data on AA01 too (distinguished by 0xBB magic byte)
-            # because bless/CoreBluetooth has issues with notifications on
-            # multiple characteristics — only the first subscribed one works.
-            if tick % 25 == 0 and seasmart_char is not None:
+            # Battery state at ~1 Hz (every 5th tick)
+            if tick % 5 == 0:
                 with sim_state.lock:
-                    binary_data = sim_state.battery.to_binary()
-                seasmart_char.value = bytearray(binary_data)
-                ok_st = server.update_value(SERVICE_UUID, SEASMART_NOTIFY_UUID)
-                if tick % 50 == 0:
-                    print(f"[BLE] Store notify (via AA01): {len(binary_data)}B ok={ok_st}")
-                await asyncio.sleep(0.01)
+                    bat_data = sim_state.battery.to_binary()
+                server.notify(battery_char, bytearray(bat_data))
 
             tick += 1
             await asyncio.sleep(0.2)
