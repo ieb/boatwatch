@@ -14,10 +14,7 @@ fun WatchApp(vm: BatteryViewModel = viewModel()) {
     val navController = rememberSwipeDismissableNavController()
     val batteryState by vm.state.collectAsStateWithLifecycle()
     val connectionStatus by vm.connectionStatus.collectAsStateWithLifecycle()
-    val serverUrl by vm.serverUrl.collectAsStateWithLifecycle()
-    val urlHistory by vm.urlHistory.collectAsStateWithLifecycle()
     val demoMode by vm.demoMode.collectAsStateWithLifecycle()
-    val transportMode by vm.transportMode.collectAsStateWithLifecycle()
     val bleDeviceName by vm.bleDeviceName.collectAsStateWithLifecycle()
     val blePin by vm.blePin.collectAsStateWithLifecycle()
 
@@ -36,17 +33,12 @@ fun WatchApp(vm: BatteryViewModel = viewModel()) {
 
             composable("settings") {
                 SettingsScreen(
-                    serverUrl = serverUrl,
                     connectionStatus = connectionStatus,
-                    urlHistory = urlHistory,
                     demoMode = demoMode,
-                    transportMode = transportMode,
                     bleDeviceName = bleDeviceName,
-                    onUpdateUrl = { vm.updateServerUrl(it) },
-                    onSetDemoMode = { vm.setDemoMode(it) },
-                    onSetTransportMode = { vm.setTransportMode(it) },
-                    onSelectBleDevice = { addr, name -> vm.selectBleDevice(addr, name) },
                     blePin = blePin,
+                    onSetDemoMode = { vm.setDemoMode(it) },
+                    onSelectBleDevice = { addr, name -> vm.selectBleDevice(addr, name) },
                     onSetBlePin = { vm.setBlePin(it) },
                 )
             }

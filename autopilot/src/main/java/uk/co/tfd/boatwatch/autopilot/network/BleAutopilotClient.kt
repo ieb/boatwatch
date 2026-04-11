@@ -164,8 +164,6 @@ class BleAutopilotClient(
         _state.value = AutopilotState()
     }
 
-    override suspend fun sendCommand(seaSmartSentence: String): Boolean = false
-
     override suspend fun sendBinaryCommand(data: ByteArray): Boolean {
         val char = commandCharacteristic ?: return false
         val g = gatt ?: return false

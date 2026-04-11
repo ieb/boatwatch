@@ -6,7 +6,7 @@ interface BatteryDataSource {
     val state: StateFlow<BatteryState>
     val connectionStatus: StateFlow<ConnectionStatus>
 
-    fun start(serverUrl: String)
+    fun start()
     fun stop()
     fun destroy()
 }

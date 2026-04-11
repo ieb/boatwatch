@@ -10,7 +10,6 @@ interface AutopilotHttpClient {
 
     fun connect(baseUrl: String)
     fun disconnect()
-    suspend fun sendCommand(seaSmartSentence: String): Boolean
-    suspend fun sendBinaryCommand(data: ByteArray): Boolean = false
+    suspend fun sendBinaryCommand(data: ByteArray): Boolean
     fun destroy()
 }

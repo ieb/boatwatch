@@ -2,7 +2,6 @@ package uk.co.tfd.boatwatch.battery.presentation
 
 import android.Manifest
 import android.app.RemoteInput
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.*
 import android.os.ParcelUuid
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,37 +23,25 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import uk.co.tfd.boatwatch.battery.data.BleBatteryDataSource
 import uk.co.tfd.boatwatch.battery.data.ConnectionStatus
-import uk.co.tfd.boatwatch.battery.data.ServerDiscovery
-import uk.co.tfd.boatwatch.battery.data.DiscoveredServer
-import uk.co.tfd.boatwatch.battery.data.TransportMode
 
 data class ScannedBleDevice(val name: String, val address: String)
 
 @Composable
 fun SettingsScreen(
-    serverUrl: String,
     connectionStatus: ConnectionStatus,
-    urlHistory: List<String>,
     demoMode: Boolean,
-    transportMode: TransportMode,
     bleDeviceName: String?,
-    onUpdateUrl: (String) -> Unit,
+    blePin: String,
     onSetDemoMode: (Boolean) -> Unit,
-    onSetTransportMode: (TransportMode) -> Unit,
     onSelectBleDevice: (address: String, name: String) -> Unit,
-    blePin: String = "0000",
-    onSetBlePin: (String) -> Unit = {},
+    onSetBlePin: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var discovering by remember { mutableStateOf(false) }
-    var discovered by remember { mutableStateOf<List<DiscoveredServer>>(emptyList()) }
 
-    // BLE scan state
     var bleScanning by remember { mutableStateOf(false) }
     var bleDevices by remember { mutableStateOf<List<ScannedBleDevice>>(emptyList()) }
 
-    // BLE scan function — called after permissions are granted
     fun startBleScan() {
         if (bleScanning) return
         bleScanning = true
@@ -94,24 +81,11 @@ fun SettingsScreen(
         }
     }
 
-    // BLE permission handling — start scan when granted
     val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         if (results.values.all { it }) {
             startBleScan()
-        }
-    }
-
-    // RemoteInput launchers
-    val inputLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val data = result.data ?: return@rememberLauncherForActivityResult
-        val results = RemoteInput.getResultsFromIntent(data)
-        val url = results?.getCharSequence("url")?.toString()
-        if (!url.isNullOrBlank()) {
-            onUpdateUrl(url)
         }
     }
 
@@ -126,21 +100,11 @@ fun SettingsScreen(
         }
     }
 
-    // Build preset list: default + history (deduplicated)
-    val presets = remember(urlHistory) {
-        val list = mutableListOf("http://boatsystems.local")
-        urlHistory.forEach { url ->
-            if (url !in list) list.add(url)
-        }
-        list
-    }
-
     ScalingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
     ) {
-        // Title
         item {
             Text(
                 text = "Settings",
@@ -157,9 +121,7 @@ fun SettingsScreen(
                 checked = demoMode,
                 onCheckedChange = { onSetDemoMode(it) },
                 label = { Text("Demo Mode") },
-                toggleControl = {
-                    Switch(checked = demoMode)
-                },
+                toggleControl = { Switch(checked = demoMode) },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -176,154 +138,40 @@ fun SettingsScreen(
         }
 
         if (!demoMode) {
-        // Transport selector
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Chip(
-                    onClick = { onSetTransportMode(TransportMode.HTTP) },
-                    label = { Text("WiFi") },
-                    colors = if (transportMode == TransportMode.HTTP)
-                        ChipDefaults.primaryChipColors()
-                    else ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.weight(1f),
-                )
-                Chip(
-                    onClick = { onSetTransportMode(TransportMode.BLE) },
-                    label = { Text("Bluetooth") },
-                    colors = if (transportMode == TransportMode.BLE)
-                        ChipDefaults.primaryChipColors()
-                    else ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-
-        // Connection status
-        item {
-            val statusColor = when (connectionStatus) {
-                ConnectionStatus.CONNECTED -> Color(0xFF4CAF50)
-                ConnectionStatus.CONNECTING -> MaterialTheme.colors.secondary
-                ConnectionStatus.ERROR -> MaterialTheme.colors.error
-                ConnectionStatus.DISCONNECTED -> MaterialTheme.colors.onSurfaceVariant
-            }
-            val statusText = when (connectionStatus) {
-                ConnectionStatus.CONNECTED -> "Connected"
-                ConnectionStatus.CONNECTING -> "Connecting..."
-                ConnectionStatus.ERROR -> "Error"
-                ConnectionStatus.DISCONNECTED -> "Disconnected"
-            }
-            val targetText = if (transportMode == TransportMode.BLE) {
-                bleDeviceName ?: "No device selected"
-            } else {
-                serverUrl
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = targetText,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colors.onSurface,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                )
-                Text(
-                    text = statusText,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = statusColor,
-                )
-            }
-        }
-
-        item { Spacer(modifier = Modifier.height(4.dp)) }
-
-        if (transportMode == TransportMode.HTTP) {
-            // === WiFi settings ===
-
-            // Find Server button
+            // Connection status
             item {
-                Chip(
-                    onClick = {
-                        if (!discovering) {
-                            discovering = true
-                            discovered = emptyList()
-                            scope.launch {
-                                discovered = ServerDiscovery.discover(context)
-                                discovering = false
-                            }
-                        }
-                    },
-                    label = {
-                        Text(
-                            text = if (discovering) "Searching..." else "Find Server",
-                            maxLines = 1,
-                        )
-                    },
-                    secondaryLabel = if (!discovering && discovered.isNotEmpty()) {
-                        { Text("Found ${discovered.size}") }
-                    } else null,
-                    colors = ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            // Discovery results
-            if (discovered.isNotEmpty()) {
-                items(discovered.size) { index ->
-                    val server = discovered[index]
-                    Chip(
-                        onClick = { onUpdateUrl(server.url) },
-                        label = { Text(server.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        secondaryLabel = { Text(server.url, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        colors = if (server.url == serverUrl) ChipDefaults.primaryChipColors()
-                        else ChipDefaults.secondaryChipColors(),
-                        modifier = Modifier.fillMaxWidth(),
+                val statusColor = when (connectionStatus) {
+                    ConnectionStatus.CONNECTED -> Color(0xFF4CAF50)
+                    ConnectionStatus.CONNECTING -> MaterialTheme.colors.secondary
+                    ConnectionStatus.ERROR -> MaterialTheme.colors.error
+                    ConnectionStatus.DISCONNECTED -> MaterialTheme.colors.onSurfaceVariant
+                }
+                val statusText = when (connectionStatus) {
+                    ConnectionStatus.CONNECTED -> "Connected"
+                    ConnectionStatus.CONNECTING -> "Connecting..."
+                    ConnectionStatus.ERROR -> "Error"
+                    ConnectionStatus.DISCONNECTED -> "Disconnected"
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = bleDeviceName ?: "No device selected",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colors.onSurface,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                    Text(
+                        text = statusText,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = statusColor,
                     )
                 }
             }
 
             item { Spacer(modifier = Modifier.height(4.dp)) }
-
-            // Preset URLs
-            items(presets.size) { index ->
-                val url = presets[index]
-                Chip(
-                    onClick = { onUpdateUrl(url) },
-                    label = {
-                        Text(
-                            text = url.removePrefix("http://"),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    colors = if (url == serverUrl) ChipDefaults.primaryChipColors()
-                    else ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            // Enter URL manually
-            item {
-                Chip(
-                    onClick = {
-                        val remoteInput = RemoteInput.Builder("url")
-                            .setLabel("Server URL")
-                            .build()
-                        val intent = RemoteInputIntentHelper.createActionRemoteInputIntent()
-                        RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(remoteInput))
-                        inputLauncher.launch(intent)
-                    },
-                    label = { Text("Enter URL...") },
-                    colors = ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        } else {
-            // === Bluetooth settings ===
 
             // Scan for devices
             item {
@@ -355,7 +203,7 @@ fun SettingsScreen(
                 )
             }
 
-            // BLE scan results
+            // Scan results
             if (bleDevices.isNotEmpty()) {
                 items(bleDevices.size) { index ->
                     val device = bleDevices[index]
@@ -369,7 +217,7 @@ fun SettingsScreen(
                 }
             }
 
-            // BLE PIN entry
+            // PIN entry
             item {
                 Chip(
                     onClick = {
@@ -386,6 +234,5 @@ fun SettingsScreen(
                 )
             }
         }
-        } // end if (!demoMode)
     }
 }

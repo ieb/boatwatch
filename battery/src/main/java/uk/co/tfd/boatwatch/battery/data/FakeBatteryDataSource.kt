@@ -16,7 +16,7 @@ class FakeBatteryDataSource : BatteryDataSource {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var pollJob: Job? = null
 
-    override fun start(serverUrl: String) {
+    override fun start() {
         pollJob?.cancel()
         _connectionStatus.value = ConnectionStatus.CONNECTING
 

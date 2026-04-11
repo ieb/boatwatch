@@ -120,8 +120,7 @@ class BleBatteryDataSource(
         _state.value = parsed
     }
 
-    override fun start(serverUrl: String) {
-        // serverUrl is ignored for BLE — we use the deviceAddress
+    override fun start() {
         destroyed = false
         doConnect()
     }
