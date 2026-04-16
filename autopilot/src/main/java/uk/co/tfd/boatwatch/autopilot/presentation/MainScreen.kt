@@ -3,10 +3,8 @@ package uk.co.tfd.boatwatch.autopilot.presentation
 import android.content.Context
 import android.os.VibrationEffect
 import android.os.Vibrator
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -47,7 +45,6 @@ fun MainScreen(
     onAdjust: (Double) -> Unit,
     onStandby: () -> Unit,
     onCycleMode: () -> Unit,
-    onSettings: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val vibrator = remember { context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator }
@@ -118,26 +115,14 @@ fun MainScreen(
                 ConnectionState.CONNECTING -> MaterialTheme.colors.secondary
                 ConnectionState.DISCONNECTED -> Color.Gray
             }
-            @OptIn(ExperimentalFoundationApi::class)
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 4.dp)
-                    .size(24.dp)
+                    .size(8.dp)
                     .clip(CircleShape)
-                    .combinedClickable(
-                        onClick = {},
-                        onLongClick = { haptic(); onSettings() },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(connDotColor)
-                )
-            }
+                    .background(connDotColor),
+            )
 
             // Circle buttons
             data class CBtn(val label: String, val angle: Float, val bg: Color, val fg: Color, val onClick: () -> Unit)

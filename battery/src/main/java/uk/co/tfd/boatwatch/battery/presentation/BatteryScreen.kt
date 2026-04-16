@@ -4,9 +4,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,7 +43,6 @@ private val LABEL_COLOR = Color(0xFF6A8A9A)
 fun BatteryScreen(
     state: BatteryState,
     connectionStatus: ConnectionStatus,
-    onSettings: () -> Unit = {},
 ) {
     val bgColor = if (state.hasError) Color(0xFF1A0505) else Color(0xFF0A0F14)
     val density = LocalDensity.current
@@ -327,26 +324,14 @@ fun BatteryScreen(
                 ConnectionStatus.CONNECTING -> SOC_YELLOW
                 ConnectionStatus.DISCONNECTED -> Color.Gray
             }
-            @OptIn(ExperimentalFoundationApi::class)
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 4.dp)
-                    .size(24.dp)
+                    .size(8.dp)
                     .clip(CircleShape)
-                    .combinedClickable(
-                        onClick = {},
-                        onLongClick = { onSettings() },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(dotColor)
-                )
-            }
+                    .background(dotColor),
+            )
         }
 
         // Center content
